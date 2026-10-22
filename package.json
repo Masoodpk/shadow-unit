@@ -1,0 +1,26 @@
+{
+  "name": "saltline",
+  "version": "0.1.0",
+  "description": "SALTLINE — Phase 1 browser FPS vertical slice (Babylon.js + TypeScript + Vite)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:single": "tsc && vite build --mode single --outDir dist-single",
+    "preview": "vite preview",
+    "typecheck": "tsc",
+    "build:artifact": "tsc && vite build --mode artifact --outDir dist-artifact && node scripts/artifact-assets.mjs dist-artifact"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@babylonjs/core": "^9.30.0",
+    "@babylonjs/havok": "^1.3.14",
+    "@babylonjs/loaders": "^9.30.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-singlefile": "^2.3.3"
+  },
+  "private": true,
+  "type": "module"
+}

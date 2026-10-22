@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shadow Unit 101</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <canvas id="game" tabindex="-1"></canvas>
+
+    <!-- Gameplay HUD (hidden until deployed) -->
+    <div id="hud" class="hidden">
+      <div id="scope" class="hidden"><div class="scope-ring"></div><i class="sc-h"></i><i class="sc-v"></i><i class="sc-dot"></i></div>
+      <div id="dmg-vignette"></div>
+      <canvas id="minimap"></canvas>
+      <div id="dmg-indicators"></div>
+      <div id="objective">
+        <span class="tag">OBJ</span><span id="obj-text">CLEAR RED DUNE</span>
+        <span id="hostiles"><b id="hostile-count">9</b> HOSTILES</span>
+      </div>
+      <div id="cheat-tags"><span id="tag-god" class="hidden">GOD MODE</span><span id="tag-arsenal" class="hidden">ALL WEAPONS</span></div>
+      <div id="crosshair">
+        <i class="ch-t"></i><i class="ch-b"></i><i class="ch-l"></i><i class="ch-r"></i><i class="ch-dot"></i>
+      </div>
+      <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+      <div id="killfeed"></div>
+      <div id="prompt"></div>
+      <div id="stance"></div>
+      <div id="vitals">
+        <div class="lbl">VITALS</div>
+        <div class="hp-row"><span id="hp-num">100</span><div class="hp-bar"><div id="hp-fill"></div><div id="hp-ghost"></div></div></div>
+      </div>
+      <div id="weapon-panel">
+        <div id="wpn-switch"><div id="wpn-slots"></div><div id="wpn-name">M4 CARBINE</div></div>
+        <div class="wp-main">
+          <div id="wpn-icon"></div>
+          <div class="ammo-row"><span id="ammo-mag">30</span><span id="ammo-res">150</span></div>
+          <div id="equip"></div>
+        </div>
+        <div id="ammo-ticks"></div>
+      </div>
+      <div id="flashbang"></div>
+    </div>
+
+    <div id="perf" class="hidden"></div>
+    <div id="dev" class="hidden"></div>
+
+    <!-- 1. Title: the game's name while the engine downloads -->
+    <div id="splash" class="screen center">
+      <video class="load-video" src="video/loading.mp4" muted loop playsinline preload="auto"></video>
+      <div class="splash-inner">
+        <div class="brand-kicker splash-kicker">A TACTICAL SHOOTER</div>
+        <h1 class="splash-title"><span class="l">S</span><span class="l">H</span><span class="l">A</span><span class="l">D</span><span class="l">O</span><span class="l">W</span><span class="l">&nbsp;</span><span class="l">U</span><span class="l">N</span><span class="l">I</span><span class="l">T</span><span class="l">&nbsp;</span><span class="l o">1</span><span class="l o">0</span><span class="l o">1</span></h1>
+        <div class="splash-sub">No backup. No second chances.</div>
+        <div class="load-bar wide"><div id="splash-fill"></div></div>
+        <div id="splash-step" class="load-step">Loading engine… <span id="splash-pct">0%</span></div>
+        <div id="splash-continue" class="press hidden">PRESS ANY KEY TO CONTINUE</div>
+      </div>
+    </div>
+
+    <!-- 2. Main menu -->
+    <div id="menu" class="screen hidden">
+      <div class="menu-inner">
+        <div class="brand">
+          <div class="brand-kicker">TACTICAL // CLOSE QUARTERS</div>
+          <h1>SHADOW UNIT <span>101</span></h1>
+          <div class="brand-sub">Pick an operation, clear every hostile, get out alive.</div>
+        </div>
+        <nav class="menu-buttons">
+          <button id="btn-play" class="btn primary">PLAY</button>
+          <button id="btn-settings" class="btn">SETTINGS</button>
+          <button id="btn-controls" class="btn">CONTROLS</button>
+          <button id="btn-credits" class="btn">CREDITS</button>
+        </nav>
+        <div class="menu-hint">Tip: <b id="hint-lean">Q</b>/<b id="hint-lean2">E</b> peek around cover · <b id="hint-prone">Z</b> go prone · every key can be changed in CONTROLS</div>
+      </div>
+    </div>
+
+    <!-- 3. Stage select -->
+    <div id="stages" class="screen hidden">
+      <div class="menu-inner wide">
+        <div class="brand-kicker">SELECT OPERATION</div>
+        <h2>STAGES</h2>
+        <div class="stage-carousel">
+          <button id="stage-prev" class="btn stage-arrow" aria-label="Previous stage">◂</button>
+          <div class="stage-window"><div id="stage-list" class="stage-list"></div></div>
+          <button id="stage-next" class="btn stage-arrow" aria-label="Next stage">▸</button>
+        </div>
+        <div id="stage-dots" class="stage-dots"></div>
+        <div class="row stages-row">
+          <button id="btn-deploy" class="btn primary">LAUNCH MISSION ▸</button>
+          <button id="btn-stages-back" class="btn">BACK</button>
+          <label class="difficulty-pick" id="dp-wrap">DIFFICULTY
+            <select id="stage-difficulty"><option value="easy">EASY</option><option value="medium">MEDIUM</option><option value="hard">HARD</option></select>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings (main menu and pause) -->
+    <div id="settings" class="screen panel hidden">
+      <div class="menu-inner wide">
+        <div class="brand-kicker">OPTIONS</div>
+        <h2>SETTINGS</h2>
+        <div class="settings grid">
+          <label>MOUSE SENSITIVITY <input id="set-sens" type="range" min="0.2" max="3" step="0.05" value="1" /><output id="set-sens-val">1.00</output></label>
+          <label>FIELD OF VIEW <input id="set-fov" type="range" min="55" max="95" step="1" value="70" /><output id="set-fov-val">70°</output></label>
+          <label>MASTER VOLUME <input id="set-vol" type="range" min="0" max="1" step="0.05" value="1" /><output id="set-vol-val">100%</output></label>
+          <label>AMBIENCE (WIND) <input id="set-amb" type="range" min="0" max="1" step="0.05" value="1" /><output id="set-amb-val">100%</output></label>
+          <label>MUSIC <input id="set-music" type="range" min="0" max="1" step="0.05" value="0.6" /><output id="set-music-val">60%</output></label>
+          <label>DIFFICULTY
+            <select id="set-difficulty"><option value="easy">EASY</option><option value="medium">MEDIUM</option><option value="hard">HARD</option></select>
+            <span class="note-inline">applies at once</span>
+          </label>
+          <label>GRAPHICS
+            <select id="set-quality"><option value="high">HIGH</option><option value="low">LOW (performance)</option></select>
+            <span class="note-inline">applies on next deploy</span>
+          </label>
+          <label class="toggle">AIM TOGGLE (laptop) <input id="set-aim" type="checkbox" checked /><span class="sw"></span><output id="set-aim-val">ON</output></label>
+          <label class="toggle">SOUND <input id="set-sound" type="checkbox" checked /><span class="sw"></span><output id="set-sound-val">ON</output></label>
+          <label class="toggle">MENU MUSIC <input id="set-menumusic" type="checkbox" checked /><span class="sw"></span><output id="set-menumusic-val">ON</output></label>
+          <label class="toggle">DEVELOPER MODE <input id="set-dev" type="checkbox" /><span class="sw"></span><output id="set-dev-val">OFF</output></label>
+        </div>
+        <div class="row"><button class="btn primary panel-back">SAVE &amp; BACK</button></div>
+      </div>
+    </div>
+
+    <!-- Controls: every action, two keys each, click to change -->
+    <div id="controls" class="screen panel hidden">
+      <div class="menu-inner wide">
+        <div class="brand-kicker">KEY BINDINGS</div>
+        <h2>CONTROLS</h2>
+        <div class="controls-help">Click a key to change it, then press the new key or mouse button. <b>ESC</b> cancels · right-click a key to clear it. Changes are saved automatically.</div>
+        <div class="settings dev-switches" id="dev-switches">
+          <div class="bind-group">DEVELOPER</div>
+          <label class="toggle">DEVELOPER MODE <input id="ctl-dev" type="checkbox" /><span class="sw"></span><output id="ctl-dev-val">OFF</output></label>
+          <label class="toggle dev-opt">GOD MODE <input id="ctl-god" type="checkbox" /><span class="sw"></span><output id="ctl-god-val">OFF</output></label>
+          <label class="toggle dev-opt">ALL WEAPONS <input id="ctl-arsenal" type="checkbox" /><span class="sw"></span><output id="ctl-arsenal-val">OFF</output></label>
+          <div class="note-inline" id="dev-switch-note">God mode and all weapons work only while developer mode is on.</div>
+        </div>
+        <div id="bind-list" class="bind-list"></div>
+        <div id="bind-msg" class="note"></div>
+        <div class="row">
+          <button class="btn primary panel-back">SAVE &amp; BACK</button>
+          <button id="btn-binds-reset" class="btn">RESET DEFAULTS</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="credits" class="screen panel hidden">
+      <div class="menu-inner wide">
+        <div class="brand-kicker">ASSETS &amp; LICENCES</div>
+        <h2>CREDITS</h2>
+        <div class="credits-list">
+          <div>Arms, M4 &amp; animations: “M4 – FPS Weapon Animations Pack v1” by BarcodeGames (CC BY 4.0)</div>
+          <div>“low-poly Colt M5 SCW” by D_U (CC BY 4.0)</div>
+          <div>“Glock17” by PSICOPATO (CC BY 4.0)</div>
+          <div>“AK 47 Assault Rifle” by MaX3Dd · “VSSK Vykhlop” by Diamonddogkz (Sketchfab Standard)</div>
+          <div>“MW 2019 Fennec (vipers gmod mw base)” · “Flashbang grenade” (Sketchfab)</div>
+          <div>“Knife animated” by DJMaesen (CC BY 4.0)</div>
+          <div>“LAW Light Anti-Tank weapon M72” by Vziuh (CC BY 4.0)</div>
+          <div>“DZJ-08 Rocket Launcher” by Martini-SF (CC BY-NC 4.0 — non-commercial)</div>
+          <div>“CS_OFFICE (CS:GO Real Light version)” by Neo_minigan (CC BY 4.0, based on Valve's cs_office)</div>
+          <div>“Shipping Containers” by Arsen Ismailov · “Psx Cargo Containers” by Brainsick Games (CC BY 4.0)</div>
+          <div>“Army Truck” by foxyvfx7867 · “Transformers Universe: Army Truck” by Primus03 (CC BY 4.0)</div>
+          <div>“Tree low poly lowpoly” by 00amza (CC BY 4.0)</div>
+          <div>“De_Dust 2 with real light” by Neo_minigan (CC BY 4.0, after Valve's de_dust2) — Sandstorm</div>
+          <div>“Prisoner Hostage Low Poly Character” by 00amza (CC BY 4.0) — Dr. Cole</div>
+          <div>“Handcuffs” by polarb · “Locker Room - 1MB” by Mehdi Shahsavan (CC BY 4.0) — Sandstorm</div>
+          <div>“Hulk | Marvel Rivals” by King_45 (CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use) — Red Dune</div>
+          <div>“Spiderman Rigged” by nitwit.friends (CC BY 4.0, Sketchfab; Mixamo rig and his own clips; character © Marvel — personal, non-commercial use)</div>
+          <div>“Iron man Flying animation” by 19503 (CC BY 4.0, Sketchfab; Mixamo rig and flying clip; character © Marvel — personal, non-commercial use)</div>
+          <div>“Deadpool MMD PORT FBX” by Izann2842_o, “Scifi Gun” by Max (both CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use)</div>
+          <div>“Batman Rigged (HatchXR)” by nitwit.friends · “Arkham Knight Batmobile (ADVANCED RIG)” by northsideanimation (CC BY 4.0, Sketchfab; characters © DC — personal, non-commercial use)</div>
+          <div>“Batarang” by Killian_Delias · “Helicopter Gunship” by DavidFischer · “F-15 free rig” by ARAZ BASIC · “rigged Northrop YF-23” by metlocaypsecrasy · “b-2 spirit” by Kevin Love · “Viettel F50 Red Eagle” by thientrung2004pr (all CC BY 4.0, Sketchfab)</div>
+          <div>“Mil Mi-28NM Havoc” by VTX (CC BY-NC-SA 4.0, Sketchfab — non-commercial)</div>
+          <div>“Superman (Textured) (Rigged)” by CAPTAAINR (CC BY 4.0, Sketchfab; character © DC — personal, non-commercial use) — cape simulated in-game</div>
+          <div>“Thanos (Textured) (Rigged)”, “Thor(Textured)(Rigged)”, “Captain America(Textured)(Rigged)”, “Captain Marvel(Textured)(Rigged)”, “Drax(Textured)(Rigged)”, “Rocket Racoon(Textured)(Rigged)”, “Ronan(Textured)(Rigged)”, “Ultron Infinity (Textured) (Rigged)”, “Darkseid(Textured)(Rigged)” by CAPTAAINR · “Star-Lord from Guardians Of The Galaxy Vol 3” by CVRxEarth · “Dr Doom V2” by Visiion · “Rigged Jocker” by DEGON · “The Flash Rigged (HatchXR)” by nitwit.friends (all CC BY 4.0, Sketchfab; characters © Marvel / DC — personal, non-commercial use)</div>
+          <div>“AntMan(Textured)(Rigged)”, “Doctor Strange(Textured)(Rigged)”, “Hela (Textured) (Rigged)”, “Red Skull (Rigged)”, “Silver Surfer(Textured)(Rigged)”, “Human Torch(Textured)(Rigged)”, “Mister Fantastic(Textured)(Rigged)” by CAPTAAINR · “Venom (Rigged)” by Fireonit (all CC BY 4.0, Sketchfab; characters © Marvel — personal, non-commercial use) — Ant-Man's skeleton made in-game</div>
+          <div>“(RIGGED) IRONHIDE // TRANSFORMERS DOTM” by shamus · “Megatron | Transformers 2007 | Rigged” by K Animator (CC BY 4.0, Sketchfab; characters © Hasbro — personal, non-commercial use)</div>
+          <div>“Toothless All Packed With Rig” by Yassin.Yakoubi (CC BY 4.0, Sketchfab; character © DreamWorks — personal, non-commercial use) — flight animated in-game</div>
+          <div>“Godzilla (Rigged Animated)” by MotionStreamStudios (CC BY-SA 4.0, Sketchfab — share-alike; character © Toho — personal, non-commercial use)</div>
+          <div>“Roscoe Street - Underground” by Neo_minigan (CC BY 4.0, Sketchfab) — Underground (tunnels and dead ends boarded up in-game)</div>
+          <div>“Polish soldier” by buh (CC BY 4.0) · “Soldier Girl” by rafa durand (CC BY-NC 4.0 — non-commercial; her skeleton made in-game) — the Underground's soldiers</div>
+          <div>“Winter Soldier (FREE)(Textured)(Rigged)” by CAPTAAINR (CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use) — the Underground's villain</div>
+          <div>“Wolverine | Rigged | Deadpool And Wolverine” by K Animator (CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use) — claws made in-game</div>
+          <div>Mixamo: Punch To Elbow Combo, Smash, MMA Kick</div>
+          <div>“Heavy Walking Footsteps” by Universfield (Pixabay Content License) — the Hulk's footfalls</div>
+          <div>Spider-Man's moves: Mixamo (Punching, Combo Punch, Right Hook, Kicking) and the soldiers' motion capture</div>
+          <div>“military wooden box” by ForevereQ · “Ration cardboard box” by Sousinho (CC BY 4.0) — Sandstorm barricades</div>
+          <div>“Ammo Box” by nghiakua06 · “Ammo Crate PBR” by avhatar · “AMMO” by FrodaJan (all CC BY 4.0, Sketchfab)</div>
+          <div>Music and sound effects: synthesised in-game</div>
+          <div>Soldier animations: Adobe Mixamo</div>
+        </div>
+        <div class="row"><button class="btn primary panel-back">BACK</button></div>
+      </div>
+    </div>
+
+    <div id="loading" class="screen hidden">
+      <video class="load-video" src="video/loading.mp4" muted loop playsinline preload="auto"></video>
+      <div class="menu-inner">
+        <div id="load-kicker" class="brand-kicker">INSERTING // RED DUNE</div>
+        <h2 id="load-title">RED DUNE</h2>
+        <div class="load-row"><div class="load-bar"><div id="load-fill"></div></div><span id="load-pct" class="load-pct">0%</span></div>
+        <div id="load-step" class="load-step">Preparing…</div>
+        <div id="load-tips" class="menu-hint"></div>
+      </div>
+    </div>
+
+    <div id="engage" class="screen hidden clickthrough">
+      <div class="menu-inner">
+        <div id="engage-kicker" class="brand-kicker">READY</div>
+        <div class="engage-text">CLICK TO ENGAGE</div>
+        <div id="engage-note" class="note"></div>
+      </div>
+    </div>
+
+    <div id="aim-hint" class="hidden">CLICK TO TAKE CONTROL OF THE MOUSE</div>
+
+    <div id="fullmap" class="hidden">
+      <canvas id="fullmap-canvas"></canvas>
+      <div id="fullmap-title" class="brand-kicker">TACTICAL MAP</div>
+      <div id="fullmap-hint" class="fullmap-hint"></div>
+      <div class="fullmap-legend"><i style="background:#f2c94c"></i>WEAPON <i style="background:#7fd98a"></i>AMMO / GRENADES <i style="background:#ff8a4c"></i>ROCKETS</div>
+    </div>
+
+    <div id="pause" class="screen hidden">
+      <div class="menu-inner">
+        <div class="brand-kicker">PAUSED</div>
+        <h2>PAUSED</h2>
+        <nav class="menu-buttons">
+          <button id="btn-resume" class="btn primary">RESUME</button>
+          <button id="btn-settings-p" class="btn">SETTINGS</button>
+          <button id="btn-controls-p" class="btn">CONTROLS</button>
+          <button id="btn-restart-p" class="btn">RESTART</button>
+          <button id="btn-mainmenu-p" class="btn">MAIN MENU</button>
+        </nav>
+        <div id="resume-note" class="note"></div>
+      </div>
+    </div>
+
+    <div id="result" class="screen hidden">
+      <div class="menu-inner">
+        <div id="result-kicker" class="brand-kicker">RED DUNE</div>
+        <h2 id="result-title">MISSION FAILED</h2>
+        <div id="result-stats"></div>
+        <nav class="menu-buttons">
+          <button id="btn-next" class="btn primary hidden">NEXT STAGE ▸</button>
+          <button id="btn-restart" class="btn primary">RESTART</button>
+          <button id="btn-restart-full" class="btn hidden">RESTART MISSION</button>
+          <button id="btn-mainmenu" class="btn">MAIN MENU</button>
+        </nav>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
