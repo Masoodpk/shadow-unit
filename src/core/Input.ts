@@ -27,6 +27,14 @@ export class Input {
   enabled = false;
   /** macOS ctrl+click acts as a right click — remember it so the release matches */
   private ctrlClick = false;
+  /** touch screen: actions held / pressed by the on-screen buttons (ui/TouchControls) */
+  private touchHeld = new Set<Action>();
+  private touchHit = new Set<Action>();
+  /** touch screen: the move stick, -1..1 each way (y = forward) */
+  moveX = 0;
+  moveY = 0;
+  /** a phone / tablet: no pointer lock, and the mouse events a tap emulates are ignored */
+  touchMode = false;
 
   onLockChange?: (locked: boolean) => void;
   onLockError?: () => void;
@@ -74,11 +82,13 @@ export class Input {
   }
   /** a bound action is held */
   held(a: Action) {
+    if (this.touchHeld.has(a)) return true;
     for (const c of bindings.codes(a)) if (this.down.has(c)) return true;
     return false;
   }
   /** a bound action was pressed this frame */
   hit(a: Action) {
+    if (this.touchHit.has(a)) return true;
     for (const c of bindings.codes(a)) if (this.pressed.has(c)) return true;
     return false;
   }
@@ -86,6 +96,7 @@ export class Input {
   /** Call at the end of each frame. */
   endFrame() {
     this.pressed.clear();
+    this.touchHit.clear();
     this.mouseDX = 0;
     this.mouseDY = 0;
     this.firePressed = false;
@@ -95,6 +106,9 @@ export class Input {
   clearAll = () => {
     this.down.clear();
     this.pressed.clear();
+    this.touchHeld.clear();
+    this.touchHit.clear();
+    this.moveX = this.moveY = 0;
     this.fireHeld = false;
     this.adsHeld = false;
     this.rmbDown = false;
@@ -126,6 +140,32 @@ export class Input {
     }
   }
 
+  /** an on-screen button went down / up: the same as a key bound to `a` */
+  actionDown(a: Action) {
+    this.touchHit.add(a);
+    this.touchHeld.add(a);
+    if (!this.locked) return;
+    if (a === "fire") this.pressFire();
+    else if (a === "aim") {
+      this.rmbDown = true;
+      this.pressAim();
+    }
+  }
+  actionUp(a: Action) {
+    this.touchHeld.delete(a);
+    if (a === "fire") this.fireHeld = this.held("fire");
+    else if (a === "aim") {
+      this.rmbDown = this.held("aim");
+      if (!this.rmbDown) this.releaseAim();
+    }
+  }
+  /** a touch drag: turned like mouse movement (the caller scales it) */
+  look(dx: number, dy: number) {
+    if (!this.locked || !this.enabled) return;
+    this.mouseDX += dx;
+    this.mouseDY += dy;
+  }
+
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.code === "F3") e.preventDefault();
     if (this.locked && (e.code === "Space" || e.code.startsWith("Arrow") || e.code === "Tab" || e.ctrlKey)) e.preventDefault();
@@ -154,14 +194,14 @@ export class Input {
     if (this.aimToggle) this.adsHeld = false;
   }
   private onMouseMove = (e: MouseEvent) => {
-    if (!this.locked || !this.enabled) return;
+    if (!this.locked || !this.enabled || this.touchMode) return;
     // Some browsers occasionally emit huge spikes on pointer lock — discard them.
     if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
     this.mouseDX += e.movementX;
     this.mouseDY += e.movementY;
   };
   private onMouseDown = (e: MouseEvent) => {
-    if (!this.locked) return;
+    if (!this.locked || this.touchMode) return;
     if (e.button === 1) e.preventDefault();
     // macOS: ctrl+click is a secondary click
     if (e.button === 0 && e.ctrlKey) {
@@ -172,6 +212,7 @@ export class Input {
     this.codeDown("Mouse" + e.button);
   };
   private onMouseUp = (e: MouseEvent) => {
+    if (this.touchMode) return;
     if (e.button === 0 && this.ctrlClick) {
       this.ctrlClick = false;
       this.codeUp("Mouse2");

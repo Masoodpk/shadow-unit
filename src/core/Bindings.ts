@@ -147,8 +147,13 @@ export class Bindings {
     if (save) this.save();
   }
 
+  /** touch screen: prompts name the on-screen button instead of a key */
+  touchLabels: Partial<Record<Action, string>> | null = null;
+
   /** first bound key, formatted for prompts ("R", "LMB") */
   label(a: Action) {
+    const t = this.touchLabels?.[a];
+    if (t) return t;
     const c = this.codes(a)[0];
     return c ? codeLabel(c) : "—";
   }

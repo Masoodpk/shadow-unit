@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- added to a phone's home screen: opens full screen, in landscape where it can -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#0b1012" />
     <title>Shadow Unit 101</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -106,7 +111,7 @@
         <div class="brand-kicker">OPTIONS</div>
         <h2>SETTINGS</h2>
         <div class="settings grid">
-          <label>MOUSE SENSITIVITY <input id="set-sens" type="range" min="0.2" max="3" step="0.05" value="1" /><output id="set-sens-val">1.00</output></label>
+          <label><span id="sens-label">MOUSE SENSITIVITY</span> <input id="set-sens" type="range" min="0.2" max="3" step="0.05" value="1" /><output id="set-sens-val">1.00</output></label>
           <label>FIELD OF VIEW <input id="set-fov" type="range" min="55" max="95" step="1" value="70" /><output id="set-fov-val">70°</output></label>
           <label>MASTER VOLUME <input id="set-vol" type="range" min="0" max="1" step="0.05" value="1" /><output id="set-vol-val">100%</output></label>
           <label>AMBIENCE (WIND) <input id="set-amb" type="range" min="0" max="1" step="0.05" value="1" /><output id="set-amb-val">100%</output></label>
@@ -119,7 +124,8 @@
             <select id="set-quality"><option value="high">HIGH</option><option value="low">LOW (performance)</option></select>
             <span class="note-inline">applies on next deploy</span>
           </label>
-          <label class="toggle">AIM TOGGLE (laptop) <input id="set-aim" type="checkbox" checked /><span class="sw"></span><output id="set-aim-val">ON</output></label>
+          <label class="touch-only">TOUCH BUTTON SIZE <input id="set-touch" type="range" min="0.7" max="1.4" step="0.05" value="1" /><output id="set-touch-val">100%</output></label>
+          <label class="toggle desktop-only">AIM TOGGLE (laptop) <input id="set-aim" type="checkbox" checked /><span class="sw"></span><output id="set-aim-val">ON</output></label>
           <label class="toggle">SOUND <input id="set-sound" type="checkbox" checked /><span class="sw"></span><output id="set-sound-val">ON</output></label>
           <label class="toggle">MENU MUSIC <input id="set-menumusic" type="checkbox" checked /><span class="sw"></span><output id="set-menumusic-val">ON</output></label>
           <label class="toggle">DEVELOPER MODE <input id="set-dev" type="checkbox" /><span class="sw"></span><output id="set-dev-val">OFF</output></label>
@@ -133,7 +139,16 @@
       <div class="menu-inner wide">
         <div class="brand-kicker">KEY BINDINGS</div>
         <h2>CONTROLS</h2>
-        <div class="controls-help">Click a key to change it, then press the new key or mouse button. <b>ESC</b> cancels · right-click a key to clear it. Changes are saved automatically.</div>
+        <div class="touch-help touch-only">
+          <div class="bind-group">TOUCH CONTROLS</div>
+          <div><b>Move</b> — put your left thumb down anywhere on the left side: a stick appears under it. Push it far past its ring, forwards, to <b>sprint</b>.</div>
+          <div><b>Look</b> — drag anywhere on the right side. The big <b>FIRE</b> button looks too while you hold it, so you can follow a target as you shoot.</div>
+          <div><b>FIRE</b> (also a small one on the left) · <b>AIM</b> toggles the sights · <b>RELOAD</b> · <b>JUMP</b> (also skips cut-scenes)</div>
+          <div><b>CROUCH</b> — tap to crouch, <b>hold</b> to go prone · <b>NADE</b> — tap to throw, <b>hold</b> for the next grenade type</div>
+          <div><b>KNIFE</b> quick stab · <b>SWAP</b> next weapon · <b>USE</b> doors, pickups, defusing (hold) · map and pause at the top right</div>
+          <div class="note-inline">Button size and look sensitivity are in SETTINGS. Playing on a phone? Turn it sideways, and add the page to your home screen for full screen.</div>
+        </div>
+        <div class="controls-help desktop-only">Click a key to change it, then press the new key or mouse button. <b>ESC</b> cancels · right-click a key to clear it. Changes are saved automatically.</div>
         <div class="settings dev-switches" id="dev-switches">
           <div class="bind-group">DEVELOPER</div>
           <label class="toggle">DEVELOPER MODE <input id="ctl-dev" type="checkbox" /><span class="sw"></span><output id="ctl-dev-val">OFF</output></label>
@@ -141,11 +156,11 @@
           <label class="toggle dev-opt">ALL WEAPONS <input id="ctl-arsenal" type="checkbox" /><span class="sw"></span><output id="ctl-arsenal-val">OFF</output></label>
           <div class="note-inline" id="dev-switch-note">God mode and all weapons work only while developer mode is on.</div>
         </div>
-        <div id="bind-list" class="bind-list"></div>
+        <div id="bind-list" class="bind-list desktop-only"></div>
         <div id="bind-msg" class="note"></div>
         <div class="row">
           <button class="btn primary panel-back">SAVE &amp; BACK</button>
-          <button id="btn-binds-reset" class="btn">RESET DEFAULTS</button>
+          <button id="btn-binds-reset" class="btn desktop-only">RESET DEFAULTS</button>
         </div>
       </div>
     </div>
@@ -217,6 +232,9 @@
         <div id="engage-note" class="note"></div>
       </div>
     </div>
+
+    <!-- touch, held upright while playing -->
+    <div id="rotate"><div class="rotate-phone"></div><div class="engage-text">TURN YOUR DEVICE</div><div class="note">Shadow Unit plays in landscape.</div></div>
 
     <div id="aim-hint" class="hidden">CLICK TO TAKE CONTROL OF THE MOUSE</div>
 

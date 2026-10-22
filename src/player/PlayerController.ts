@@ -342,9 +342,14 @@ export class PlayerController {
       if (inp.held("back")) fz -= 1;
       if (inp.held("right")) fx += 1;
       if (inp.held("left")) fx -= 1;
+      // the touch stick: analog, so a light push walks slowly
+      if (fx === 0 && fz === 0) {
+        fx = inp.moveX;
+        fz = inp.moveY;
+      }
     }
     const len = Math.hypot(fx, fz);
-    if (len > 0) {
+    if (len > 1) {
       fx /= len;
       fz /= len;
     }

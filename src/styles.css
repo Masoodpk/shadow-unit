@@ -596,3 +596,124 @@ body.cinematic #boss-stack { display: none; }
 .difficulty-pick { margin-left: auto; display: flex; align-items: center; gap: 10px; font: 600 11px var(--mono); letter-spacing: 0.28em; color: var(--bone-dim); }
 .difficulty-pick select { font: 600 12px var(--mono); letter-spacing: 0.18em; color: var(--bone); background: #12191b; border: 1px solid rgba(232,226,214,0.3); padding: 9px 12px; cursor: pointer; }
 .difficulty-pick select:hover, .difficulty-pick select:focus-visible { border-color: var(--signal); outline: none; }
+
+/* ---------- small screens (phones in landscape, small windows): menus that fit and scroll ---------- */
+@media (max-height: 560px) {
+  .screen { overflow-y: auto; align-items: flex-start; padding-block: max(14px, env(safe-area-inset-top)) 14px; padding-inline: max(4vw, env(safe-area-inset-left)) max(4vw, env(safe-area-inset-right)); }
+  #splash, #engage, #loading { align-items: center; }
+  .menu-inner { gap: 10px; }
+  h1 { font-size: clamp(34px, 9vh, 64px); }
+  h2 { font-size: 32px; }
+  .brand-sub { font-size: 13px; margin-top: 4px; }
+  .btn { font-size: 15px; padding: 10px 18px; width: 240px; }
+  .menu-buttons { gap: 7px; }
+  .stage-thumb { height: 74px; }
+  .stage-body { padding: 8px 12px 10px; gap: 3px; }
+  .stage-name { font-size: 20px; }
+  .stage-desc { display: none; }
+  .stage-loc { font-size: 11px; }
+  #stages h2 { font-size: 24px; }
+  #stages .menu-inner { gap: 6px; }
+  .stage-dots { margin: 0; }
+  .stage-arrow { height: 64px; width: 40px; }
+  .stages-row .btn { width: auto; }
+  .screen.panel { padding-top: 14px; padding-bottom: 14px; }
+  #result-stats { font-size: 11px; line-height: 1.5; }
+  .engage-text { font-size: 30px; }
+  .splash-sub { font-size: 12px; }
+  .load-bar { width: min(360px, 70vw); }
+}
+@media (max-width: 760px) {
+  .settings input[type=range] { width: 120px; }
+  .settings label { flex-wrap: wrap; }
+}
+
+/* ---------- touch screens: on-screen controls (ui/TouchControls) ---------- */
+body:not(.touch) .touch-only { display: none !important; }
+body.touch .desktop-only { display: none !important; }
+body.touch { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body.touch .btn { touch-action: manipulation; }
+body.touch .btn:hover { background: rgba(232,226,214,0.06); }
+body.touch .btn.primary:hover { background: var(--signal); }
+.touch-help { display: flex; flex-direction: column; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--bone-dim); line-height: 1.55; max-width: 760px; }
+.touch-help b { color: var(--bone); }
+
+/* one touch unit: every button and the HUD around them are sized in it (--ts: the button size setting) */
+body.touch { --tu: calc(clamp(44px, 10.5vmin, 84px) * var(--ts, 1)); }
+#touch { position: fixed; inset: 0; z-index: 11; touch-action: none; user-select: none; -webkit-user-select: none;
+  --sr: env(safe-area-inset-right, 0px); --sl: env(safe-area-inset-left, 0px); --sb: env(safe-area-inset-bottom, 0px); --st: env(safe-area-inset-top, 0px); }
+body:not(.ingame) #touch { display: none; }
+.tc-btn { position: absolute; width: calc(var(--s, 0.95) * var(--tu)); height: calc(var(--s, 0.95) * var(--tu));
+  right: calc(var(--x) * var(--tu) + var(--sr)); bottom: calc(var(--y) * var(--tu) + var(--sb)); transform: translate(50%, 50%);
+  border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  background: rgba(10,14,16,0.34); border: 1.5px solid rgba(232,226,214,0.42); color: rgba(240,236,228,0.92);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); transition: background .08s, transform .08s; }
+.tc-btn svg { width: 44%; height: 44%; }
+.tc-btn span { font: 600 calc(var(--tu) * 0.15) var(--mono); letter-spacing: 0.08em; line-height: 1; }
+.tc-btn.down { background: rgba(232,226,214,0.32); transform: translate(50%, 50%) scale(0.93); }
+.tc-btn.on { background: rgba(95,212,200,0.32); border-color: var(--teal); color: #fff; }
+.tc-fire { --x: 1.9; --y: 1.85; --s: 1.7; background: rgba(255,106,43,0.28); border-color: rgba(255,106,43,0.85); }
+.tc-fire.down { background: rgba(255,106,43,0.55); }
+.tc-fire svg { width: 50%; height: 50%; }
+.tc-aim { --x: 3.65; --y: 2.2; --s: 1.05; }
+.tc-crouch { --x: 3.35; --y: 0.68; --s: 0.92; }
+.tc-reload { --x: 3.1; --y: 3.45; --s: 0.92; }
+.tc-jump { --x: 1.75; --y: 3.72; --s: 0.98; }
+.tc-grenade { --x: 0.62; --y: 3.55; --s: 0.82; }
+.tc-knife { --x: 4.95; --y: 0.95; --s: 0.82; }
+.tc-use { --x: 4.95; --y: 3.35; --s: 0.88; border-style: dashed; }
+.tc-swap { --x: 1.15; --y: 4.95; --s: 0.82; }
+.tc-fire-l { right: auto; left: calc(1.15 * var(--tu) + var(--sl)); --y: 4.1; --s: 1.0; transform: translate(-50%, 50%);
+  background: rgba(255,106,43,0.2); border-color: rgba(255,106,43,0.7); }
+.tc-fire-l.down { transform: translate(-50%, 50%) scale(0.93); background: rgba(255,106,43,0.5); }
+.tc-map, .tc-pause { --s: 0.7; bottom: auto; top: calc(0.5 * var(--tu) + var(--st)); transform: translate(50%, -50%); }
+.tc-map.down, .tc-pause.down { transform: translate(50%, -50%) scale(0.93); }
+.tc-pause { --x: 0.55; }
+.tc-map { --x: 1.4; }
+/* the move stick: a faint ring where the thumb usually rests, the live stick wherever it lands */
+.tc-stick-ghost, .tc-stick { position: absolute; width: calc(2.5 * var(--tu)); height: calc(2.5 * var(--tu)); border-radius: 50%; pointer-events: none; }
+.tc-stick-ghost { left: calc(2.1 * var(--tu) + var(--sl)); bottom: calc(1.9 * var(--tu) + var(--sb)); transform: translate(-50%, 50%);
+  border: 1.5px dashed rgba(232,226,214,0.22); }
+#touch.sticking .tc-stick-ghost { display: none; }
+.tc-stick { transform: translate(-50%, -50%); background: rgba(10,14,16,0.22); border: 1.5px solid rgba(232,226,214,0.4); }
+.tc-knob { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; border-radius: 50%; transform: translate(-50%, -50%);
+  background: rgba(232,226,214,0.55); box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+.tc-sprint { position: absolute; left: 50%; bottom: calc(100% + 0.35 * var(--tu)); transform: translateX(-50%); font: 700 11px var(--mono); letter-spacing: 0.3em;
+  color: var(--bone-dim); padding: 3px 8px; border: 1px dashed rgba(232,226,214,0.3); white-space: nowrap; }
+.tc-sprint::before { content: "▲ "; }
+.tc-stick.sprint { border-color: var(--teal); }
+.tc-stick.sprint .tc-knob { background: var(--teal); }
+.tc-stick.sprint .tc-sprint { color: #0b1012; background: var(--teal); border: 1px solid var(--teal); }
+/* a cut-scene: only JUMP (skip) and pause matter */
+body.touch:has(.mission.cine) #touch .tc-btn:not(.tc-jump):not(.tc-pause) { opacity: 0.15; }
+body.touch:has(.mission.cine) .tc-jump { border-color: var(--signal); background: rgba(255,106,43,0.3); }
+body.touch .ms-skip { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+
+/* the HUD rearranged round the thumbs: radar and objective top left, weapon top right, health bottom centre */
+body.touch #minimap { width: 112px; height: 112px; left: calc(10px + env(safe-area-inset-left, 0px)); top: calc(10px + env(safe-area-inset-top, 0px)); }
+body.touch #objective { top: calc(130px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px)); font-size: 10px; gap: 6px; letter-spacing: 0.12em; flex-wrap: wrap; max-width: 40vw; }
+body.touch #hostiles { margin-left: 0; }
+body.touch #cheat-tags { top: calc(152px + env(safe-area-inset-top, 0px)); left: calc(12px + env(safe-area-inset-left, 0px)); }
+body.touch #weapon-panel { top: calc(8px + env(safe-area-inset-top, 0px)); bottom: auto; right: calc(1.95 * var(--tu) + env(safe-area-inset-right, 0px)); transform: scale(0.58); transform-origin: top right; }
+body.touch #vitals { left: 50%; bottom: calc(6px + env(safe-area-inset-bottom, 0px)); width: min(240px, 30vw); transform: translateX(-50%); }
+body.touch #vitals .lbl { display: none; }
+body.touch #hp-num { font-size: 22px; min-width: 40px; }
+body.touch #stance { left: 50%; transform: translateX(-50%); bottom: calc(38px + env(safe-area-inset-bottom, 0px)); white-space: nowrap; }
+body.touch #killfeed { top: 30%; font-size: 11px; }
+body.touch #prompt { top: 62%; font-size: 11px; letter-spacing: 0.12em; text-align: center; max-width: 44vw; }
+body.touch .ms-boss { top: calc(8px + env(safe-area-inset-top, 0px)); width: min(400px, 40vw); }
+body.touch .ms-boss-name { font-size: 12px; }
+body.touch .ms-sub { bottom: 24vh; font-size: 11px; max-width: 50vw; }
+body.touch #fullmap-canvas { width: min(80vw, 80vh); height: min(80vw, 80vh); }
+body.touch #dev, body.touch #aim-hint { display: none !important; }
+
+/* touch, held upright while playing: ask for landscape */
+#rotate { display: none; }
+@media (orientation: portrait) {
+  body.touch.ingame #rotate { display: flex; }
+  #rotate { position: fixed; inset: 0; z-index: 70; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px;
+    background: rgba(6,9,10,0.94); }
+  #rotate .engage-text { font-size: 26px; }
+  .rotate-phone { width: 44px; height: 74px; border: 3px solid var(--bone); border-radius: 8px; animation: rotate-hint 1.8s ease-in-out infinite; }
+}
+@keyframes rotate-hint { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }

@@ -2,6 +2,7 @@ import { Camera } from "@babylonjs/core/Cameras/camera";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Scene } from "@babylonjs/core/scene";
 import { Viewport } from "@babylonjs/core/Maths/math.viewport";
+import { bindings } from "../core/Bindings";
 
 /**
  * The mission layer of the HUD (DOM, over the game HUD): the waypoint marker on the next
@@ -45,7 +46,7 @@ export class MissionHud {
     el("ms-bar top", this.bars);
     el("ms-bar bottom", this.bars);
     this.skip = el("ms-skip", this.root);
-    this.skip.innerHTML = "<b>SPACE</b> SKIP";
+    this.skip.innerHTML = `<b>${bindings.label("jump")}</b> SKIP`;
     this.way = el("ms-way", this.root);
     el("ms-diamond", this.way);
     this.wayLabel = el("ms-way-label", this.way, "span");

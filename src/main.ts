@@ -10,6 +10,7 @@ import frostlineThumb from "./assets/thumbs/frostline.webp?url";
 import sandstormThumb from "./assets/thumbs/sandstorm.webp?url";
 import whiteoutThumb from "./assets/thumbs/whiteout.webp?url";
 import metroThumb from "./assets/thumbs/metro.webp?url";
+import { TOUCH_LABELS, TouchControls, isTouchDevice } from "./ui/TouchControls";
 
 /** stage thumbnails: real renders of each stage */
 const THUMBS: Record<StageId, string> = { kestrel: redDuneThumb, office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, whiteout: whiteoutThumb };
@@ -60,6 +61,31 @@ const session = {
 };
 
 let game: Game | null = null;
+
+/**
+ * Phones and tablets: on-screen controls instead of mouse and keys (ui/TouchControls), no pointer
+ * lock (the game runs as in the no-lock fallback), prompts naming the buttons, fullscreen and
+ * landscape where the browser allows it, and low graphics unless changed.
+ */
+const touch = isTouchDevice();
+let touchUi: TouchControls | null = null;
+if (touch) {
+  document.body.classList.add("touch");
+  bindings.touchLabels = TOUCH_LABELS;
+}
+/** fullscreen + landscape lock (both need a tap behind them; iPhone Safari has neither — it just carries on) */
+function goFullscreen() {
+  if (!touch) return;
+  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+  const lock = () => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.("landscape").catch(() => undefined);
+  try {
+    if (document.fullscreenElement) void lock();
+    else if (el.requestFullscreen) void el.requestFullscreen({ navigationUI: "hide" }).then(lock, () => undefined);
+    else el.webkitRequestFullscreen?.();
+  } catch {
+    /* not allowed here */
+  }
+}
 
 /**
  * Menu music: its own little Web Audio player (the game's audio engine only exists once a stage
@@ -124,7 +150,9 @@ const menuMusic = {
 const startMenuMusic = () => void menuMusic.start();
 window.addEventListener("keydown", startMenuMusic, { once: true });
 window.addEventListener("mousedown", startMenuMusic, { once: true });
-let lockFallback = false;
+window.addEventListener("touchend", startMenuMusic, { once: true });
+/** no pointer lock: the cursor-bound fallback, and always on a touch screen */
+let lockFallback = touch;
 /** pointer lock has succeeded at least once (so a later refusal is the browser's re-lock cooldown) */
 let lockWorked = false;
 const asStage = (v: string | null | undefined): StageId => (STAGES.some((s) => s.id === v) ? (v as StageId) : "kestrel");
@@ -141,7 +169,9 @@ const prefs = {
   volume: num("volume", 1),
   ambience: num("ambience", 1),
   music: num("music", 0.6),
-  quality: (store.get("quality", "high") === "low" ? "low" : "high") as "high" | "low",
+  quality: (store.get("quality", touch ? "low" : "high") === "low" ? "low" : "high") as "high" | "low",
+  /** on-screen button size (touch) */
+  touchScale: num("touchScale", 1),
 };
 
 function bindRange(id: string, key: keyof typeof prefs, fmt: (v: number) => string, apply: (v: number) => void) {
@@ -158,6 +188,8 @@ function bindRange(id: string, key: keyof typeof prefs, fmt: (v: number) => stri
   });
 }
 bindRange("set-sens", "sens", (v) => v.toFixed(2), (v) => game?.setSensitivity(v));
+bindRange("set-touch", "touchScale", (v) => `${Math.round(v * 100)}%`, (v) => touchUi?.setScale(v));
+if (touch) $("sens-label").textContent = "LOOK SENSITIVITY";
 bindRange("set-fov", "fov", (v) => `${Math.round(v)}°`, (v) => game?.setFov(v));
 bindRange("set-vol", "volume", (v) => `${Math.round(v * 100)}%`, (v) => {
   game?.audio?.setVolume(v);
@@ -375,6 +407,10 @@ function updateHints() {
   $("hint-prone").textContent = bindings.label("prone");
 }
 updateHints();
+if (touch) {
+  document.querySelector("#menu .menu-hint")!.innerHTML = "Tip: left thumb moves (push the stick far forward to sprint) · drag on the right to look · <b>hold CROUCH</b> to go prone";
+  $("splash-continue").textContent = "TAP TO CONTINUE";
+}
 
 // ------------------------------------------------------------------ title → menu → stages
 function goMenu() {
@@ -488,6 +524,7 @@ function layoutStages(i: number) {
   dots.innerHTML = STAGES.map((s, k) => `<span class="${k === i ? "on" : ""}" title="${s.name}"></span>`).join("");
 }
 $("btn-play").addEventListener("click", () => {
+  goFullscreen();
   show("menu", false);
   // (the stage screen always opens on the first stage)
   stage = STAGES[0].id;
@@ -520,6 +557,7 @@ function onState(state: GameState, stats?: RoundStats) {
   menuMusic.setActive(state === "paused" || state === "dead" || state === "won");
   show("result", state === "dead" || state === "won");
   if (state !== "paused") for (const p of ["settings", "controls", "credits"]) show(p, false);
+  if (state !== "playing") touchUi?.reset();
   document.body.classList.toggle("ingame", state === "playing");
   // loading finished: straight into the stage (no "click to engage" screen)
   if (state === "ready") void autoStart();
@@ -569,6 +607,11 @@ async function autoStart() {
   const g = game;
   if (!g || g.state !== "ready") return;
   g.begin();
+  // (touch: nothing to capture — the on-screen controls are live at once)
+  if (touch) {
+    g.input.locked = true;
+    return;
+  }
   const act = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
   if (act && !act.isActive) return;
   autoLockUntil = performance.now() + 1500;
@@ -631,7 +674,8 @@ async function deploy() {
       music: prefs.music,
       muted: toggles.muted.value,
       devMode: toggles.devMode.value,
-      aimToggle: toggles.aimToggle.value,
+      // (touch: AIM is a toggle button)
+      aimToggle: touch || toggles.aimToggle.value,
     },
     {
       onStateChange: onState,
@@ -645,6 +689,10 @@ async function deploy() {
     },
   );
   game = g;
+  if (touch) {
+    g.input.touchMode = true;
+    touchUi = new TouchControls(g.input, { scale: prefs.touchScale, onPause: () => g.pause(), onTouch: () => g.audio.resume() });
+  }
   g.input.onLockChange = (locked) => {
     updateAimHint();
     if (locked) {
@@ -727,7 +775,14 @@ async function deploy() {
   if (quick) installDevHelpers(g);
 }
 
-$("btn-deploy").addEventListener("click", () => void deploy());
+$("btn-deploy").addEventListener("click", () => {
+  goFullscreen();
+  void deploy();
+});
+// touch: turned to portrait mid-fight — pause (the "turn your device" card shows over the game)
+matchMedia("(orientation: portrait)").addEventListener("change", (e) => {
+  if (touch && e.matches && game?.state === "playing") game.pause();
+});
 // Without pointer lock the browser doesn't exit on ESC for us — handle pause manually.
 window.addEventListener("keydown", (e) => {
   if (!game || e.code !== "Escape" || capture) return;
@@ -750,6 +805,7 @@ $("engage").addEventListener("click", () => {
 });
 $("btn-resume").addEventListener("click", () => {
   if (!game) return;
+  goFullscreen();
   if (lockFallback) game.resume();
   else void game.input.requestLock();
 });
