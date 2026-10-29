@@ -21,6 +21,39 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 
 ---
 
+## Online deathmatch, phase 1 (October 30)
+
+Free-for-all in **Black Ledger**, up to 8 players, like Mini Militia: 5-minute matches, die and you're back in 3 s at the spawn point farthest from everyone, kill feed, scoreboard (hold **Tab**), results and the winner, then a new match.
+
+**Play it with friends (the public site, nothing to run)**
+- Open the Vercel site → **MULTIPLAYER** → type a name → **CREATE ROOM**. Press ESC → **COPY INVITE LINK** and send it (it looks like `https://<site>/?room=ABCD`). Friends who open it land on the MULTIPLAYER screen with the room filled in: type a name, **JOIN ROOM**.
+- Or everyone presses **QUICK PLAY**.
+- The MULTIPLAYER screen shows the server: **● SERVER ONLINE · N PLAYING** or **◌ WAKING UP THE SERVER…**. The free server sleeps after 15 minutes with nobody on and takes up to a minute to wake; opening the screen wakes it, and joining keeps retrying until it answers.
+
+**One-time server setup (free, Render)** — the Vercel site only serves files; the match server is a separate always-on Node process:
+1. Push this repo to GitHub (it has `render.yaml` at the root).
+2. render.com → sign up with GitHub (free, no card) → **New → Blueprint** → pick the `shadow-unit` repo → **Apply**. It creates the free web service `shadow-unit-mp` from `server/`.
+3. When it's live, open `https://shadow-unit-mp.onrender.com/health`: it should answer `{"ok":true,...}`.
+4. If Render gave the service another address, add `VITE_MP_URL=wss://<that address>` in Vercel → Project → Settings → Environment Variables, and redeploy. (The default lives in `src/config/net.ts`.)
+Every push to `main` redeploys both: Vercel the game, Render the server.
+
+**Play it on your own machine / Wi-Fi**
+1. `npm run server` (port 8787; `MP_MATCH_S=600` for 10-minute matches).
+2. `npm run dev -- --host`, and everyone opens `http://<your computer's IP>:5173`. On localhost or a home network the game connects to port 8787 on that machine by itself.
+
+**How it works**
+- `server/server.mjs`: one Node process (the `ws` library), many rooms, a 20 Hz tick. It holds health, kills, deaths, respawns, the clock and the results. Hit claims are checked: both players alive, within range, damage within a weapon's cap, at most 30 claims a second. Teleports are refused, and health regenerates as in single player (after 5 s, 4 a second).
+- `src/net/MpClient.ts`:
+  - Your movement is your own and instant; your state goes out 20 times a second.
+  - The other players are the game's soldiers (S.W.A.T., FSB, Mark), animated by the mocap from their speed, direction, stance and aim, drawn 120 ms in the past and smoothly interpolated between snapshots.
+  - Your shots are tested against their bodies exactly as against soldiers (their hitboxes, your weapon's damage, knives too) and the hit is claimed from the server. What you see is what you hit.
+  - Their shots: sound and tracers where they are.
+- `src/net/MpHud.ts`: the clock, room code, kill feed, scoreboard, death screen, results, and name tags over players.
+- In the game: `GameSettings.mp`. When it's set, the stage loads without its soldiers or mission, `player.onDeath` goes to the server, `netDamage` applies the server's damage, and `WeaponManager` sends `onFire` for each round. With it unset, single player is unchanged.
+- Dev: `?quick=nightshift&mp=ROOM&name=X` boots straight into a room; `MP_DEV=1` lets tests teleport players.
+
+**Not yet (phase 2):** grenades, rockets and fire only hurt you locally (not other players); pickups aren't shared; the hit check trusts the shooter's game (fine among friends, cheatable by a determined stranger: server-side rewind hit detection is the fix); bots, teams, more maps, chat.
+
 ## Glass fix and full screen (October 30)
 
 - **Glass broke when you shot a wall:** each window's collider was its bounding box. For a diagonal or L-shaped window (Black Ledger's lobby, 10 m on the slant), that box filled the room behind it, so a shot at the wall broke the window and the box blocked your way before it did. The collider is now the pane's own triangles, and shards fall from points on the glass itself (`level/Glass.ts`). Frostline's 131 straight panes still break when shot.

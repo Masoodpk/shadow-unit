@@ -40,6 +40,8 @@ const MELEE = {
 export interface ShotEvents {
   onHit(kind: "body" | "head", killed: boolean): void;
   onShot(origin: Vector3, noise: number): void;
+  /** a round left the muzzle (online: everyone else hears and sees it) */
+  onFire?(muzzle: Vector3, dir: Vector3, weapon: string): void;
   onNoAmmo(): void;
   /** a grenade left the hand */
   onThrow(type: GrenadeType, origin: Vector3, velocity: Vector3): void;
@@ -996,6 +998,7 @@ export class WeaponManager {
     this.player.addRecoil(pitch, yaw, r.recoveryFraction, r.recovery, r.kickRot * 6);
     this.viewmodel.kick(r.kickBack, r.kickRot, adsScale);
     this.events.onShot(origin, cfg.noise ?? 1);
+    this.events.onFire?.(this.muzzleWorld, aim, cfg.id);
   }
 
   /** bullet ray that shatters any window it meets and carries on behind it */

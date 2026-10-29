@@ -1,0 +1,14 @@
+# Render blueprint: the online deathmatch server (server/), on Render's free plan.
+# render.com → New → Blueprint → pick this repo → Apply. It redeploys on every push to main.
+# (Free web services sleep after 15 minutes with no traffic and take up to a minute to wake: the game
+# wakes it when someone opens MULTIPLAYER, and keeps trying while it does.)
+services:
+  - type: web
+    name: shadow-unit-mp
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install --omit=dev
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    autoDeploy: true

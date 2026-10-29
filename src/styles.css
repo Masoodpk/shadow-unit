@@ -717,3 +717,13 @@ body.touch #dev, body.touch #aim-hint { display: none !important; }
   .rotate-phone { width: 44px; height: 74px; border: 3px solid var(--bone); border-radius: 8px; animation: rotate-hint 1.8s ease-in-out infinite; }
 }
 @keyframes rotate-hint { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+
+/* multiplayer panel: text fields in the settings style */
+.mp-form { display: grid; gap: 12px; margin: 18px 0; }
+.mp-form input[type="text"] { flex: 1; background: rgba(0,0,0,0.35); border: 1px solid rgba(232,226,214,0.3); color: inherit; font: inherit; letter-spacing: .1em; padding: 8px 10px; text-transform: uppercase; }
+.mp-form input[type="text"]:focus { outline: none; border-color: #ff6a2b; }
+.mp-server { font-size: 11px; letter-spacing: .14em; margin: 0 0 14px; color: var(--bone-dim, #9aa); }
+.mp-server.ok { color: #6fdc8c; }
+.mp-server.wait { color: #ffb347; }
+.mp-advanced { display: inline-block; margin-top: 10px; font-size: 10px; letter-spacing: .14em; color: var(--bone-dim, #889); text-decoration: none; opacity: .7; }
+.mp-advanced:hover { opacity: 1; }

@@ -223,6 +223,21 @@ export class PlayerController {
     }
   }
 
+  /**
+   * Online: damage the server has already decided (no difficulty scaling, and no death here — the
+   * server says when you're dead). The flinch, the sound and the red flash as usual.
+   */
+  netDamage(amount: number, from: Vector3) {
+    if (!this.alive || amount <= 0) return;
+    this.sinceHurt = 0;
+    this.health = Math.max(1, this.health - amount);
+    const rel = Math.atan2(from.x - this.collider.position.x, from.z - this.collider.position.z) - this.yaw;
+    this.punchPitch.impulse(0.6);
+    this.punchRoll.impulse((Math.random() - 0.5) * 1.2);
+    this.audio.play("playerHurt", { volume: 0.7 });
+    this.onDamaged?.(amount, rel);
+  }
+
   takeDamage(amount: number, from: Vector3) {
     if (!this.alive || this.invulnerable) return;
     amount *= PLAYER.damageTaken * difficulty.k.damageTaken;

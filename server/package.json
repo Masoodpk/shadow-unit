@@ -1,0 +1,10 @@
+{
+  "name": "shadow-unit-mp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SHADOW UNIT online deathmatch server (rooms, snapshots, scores)",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": { "ws": "^8.22.0" }
+}

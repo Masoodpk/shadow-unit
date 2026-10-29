@@ -76,6 +76,7 @@
         </div>
         <nav class="menu-buttons">
           <button id="btn-play" class="btn primary">PLAY</button>
+          <button id="btn-mp" class="btn">MULTIPLAYER</button>
           <button id="btn-settings" class="btn">SETTINGS</button>
           <button id="btn-controls" class="btn">CONTROLS</button>
           <button id="btn-credits" class="btn">CREDITS</button>
@@ -164,6 +165,29 @@
           <button class="btn primary panel-back">SAVE &amp; BACK</button>
           <button id="btn-binds-reset" class="btn desktop-only">RESET DEFAULTS</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Online deathmatch: name, room code, server -->
+    <div id="mp" class="screen panel hidden">
+      <div class="menu-inner">
+        <div class="brand-kicker">ONLINE // DEATHMATCH</div>
+        <h2>MULTIPLAYER</h2>
+        <div class="brand-sub">Everyone against everyone in Black Ledger, up to 8 players. Five-minute matches: die and you're back in 3 seconds, and the most kills wins.</div>
+        <div class="settings mp-form">
+          <label>YOUR NAME <input id="mp-name" type="text" maxlength="16" placeholder="OPERATOR" /></label>
+          <label>ROOM CODE <input id="mp-room" type="text" maxlength="8" placeholder="e.g. WOLF" /></label>
+          <label id="mp-url-row" class="hidden">SERVER <input id="mp-url" type="text" placeholder="wss://…" /></label>
+        </div>
+        <div id="mp-server" class="mp-server">CHECKING THE SERVER…</div>
+        <nav class="menu-buttons">
+          <button id="btn-mp-join" class="btn primary">JOIN ROOM</button>
+          <button id="btn-mp-create" class="btn">CREATE ROOM</button>
+          <button id="btn-mp-quick" class="btn">QUICK PLAY (ANYONE)</button>
+          <button class="btn panel-back">BACK</button>
+        </nav>
+        <div id="mp-note" class="note">Friends: one of you presses CREATE ROOM, then sends the invite link (pause menu → COPY INVITE LINK) or the 4-letter code. QUICK PLAY puts you in any open room.</div>
+        <a id="mp-advanced" class="mp-advanced" href="#">ADVANCED: SERVER ADDRESS</a>
       </div>
     </div>
 
@@ -260,6 +284,7 @@
           <button id="btn-restart-p" class="btn">RESTART</button>
           <button id="btn-mainmenu-p" class="btn">MAIN MENU</button>
           <button id="btn-fullscreen-p" class="btn fs-btn">FULL SCREEN</button>
+          <button id="btn-invite-p" class="btn hidden">COPY INVITE LINK</button>
         </nav>
         <div id="resume-note" class="note"></div>
       </div>

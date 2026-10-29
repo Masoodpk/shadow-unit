@@ -1,3 +1,4 @@
+import { mpHealthUrl, mpServerUrl } from "./config/net";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import "./styles.css";
@@ -299,7 +300,7 @@ $<HTMLInputElement>("ctl-arsenal").addEventListener("change", (e) => {
 
 // ------------------------------------------------------------------ panels (settings / controls / credits)
 let panelReturn = "menu";
-function openPanel(id: "settings" | "controls" | "credits", from: string) {
+function openPanel(id: "settings" | "controls" | "credits" | "mp", from: string) {
   panelReturn = from;
   show(from, false);
   show(id, true);
@@ -307,7 +308,7 @@ function openPanel(id: "settings" | "controls" | "credits", from: string) {
 }
 function closePanels() {
   cancelCapture();
-  for (const p of ["settings", "controls", "credits"]) show(p, false);
+  for (const p of ["settings", "controls", "credits", "mp"]) show(p, false);
   show(panelReturn, true);
 }
 for (const b of document.querySelectorAll<HTMLButtonElement>(".panel-back")) b.addEventListener("click", closePanels);
@@ -423,7 +424,14 @@ if (touch) {
 function goMenu() {
   for (const s of ["splash", "stages", "settings", "controls", "credits"]) show(s, false);
   show("menu", true);
+  // (an invite link: straight on to the MULTIPLAYER screen, once)
+  if (pendingInvite) {
+    pendingInvite = false;
+    openMpPanel?.();
+  }
 }
+let pendingInvite = false;
+let openMpPanel: (() => void) | null = null;
 let splashDone = false;
 function leaveSplash() {
   if (splashDone || !engineReady) return;
@@ -543,6 +551,96 @@ $("btn-stages-back").addEventListener("click", goMenu);
 $("btn-settings").addEventListener("click", () => openPanel("settings", "menu"));
 $("btn-controls").addEventListener("click", () => openPanel("controls", "menu"));
 $("btn-credits").addEventListener("click", () => openPanel("credits", "menu"));
+
+// ------------------------------------------------------------------ online deathmatch
+/** set when a multiplayer game is being deployed (Black Ledger, no soldiers, the others are the enemy) */
+let mpSettings: import("./net/MpClient").MpSettings | null = null;
+/** the server: config/net (the public Render service on the live site; this machine when run locally) */
+const mpDefaultUrl = () => mpServerUrl();
+$<HTMLInputElement>("mp-name").value = store.get("mpName", "");
+$<HTMLInputElement>("mp-room").value = store.get("mpRoom", "");
+$<HTMLInputElement>("mp-url").value = store.get("mpUrl", "") || mpDefaultUrl();
+// (the address field is for testing only: friends never need it)
+if (store.get("mpUrl", "") || import.meta.env.DEV) $("mp-url-row").classList.remove("hidden");
+$("mp-advanced").addEventListener("click", (e) => {
+  e.preventDefault();
+  $("mp-url-row").classList.toggle("hidden");
+});
+/**
+ * The server's state on the MULTIPLAYER screen, polled while it's open. The first poll is also what
+ * wakes a sleeping free host (Render stops it after 15 idle minutes; it's back within about a minute).
+ */
+let mpPoll = 0;
+async function pollMpServer() {
+  const el = $("mp-server");
+  const url = $<HTMLInputElement>("mp-url").value.trim() || mpDefaultUrl();
+  const t0 = performance.now();
+  try {
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(mpHealthUrl(url), { signal: ctl.signal, cache: "no-store" });
+    clearTimeout(to);
+    const j = (await r.json()) as { players: number; rooms: number };
+    el.className = "mp-server ok";
+    el.textContent = `● SERVER ONLINE · ${j.players} PLAYING IN ${j.rooms} ROOM${j.rooms === 1 ? "" : "S"} · ${Math.round(performance.now() - t0)} MS`;
+  } catch {
+    el.className = "mp-server wait";
+    el.textContent = "◌ WAKING UP THE SERVER — UP TO A MINUTE AFTER A QUIET SPELL. YOU CAN JOIN NOW: IT KEEPS TRYING.";
+  }
+}
+function openMp() {
+  openPanel("mp", "menu");
+  void pollMpServer();
+  clearInterval(mpPoll);
+  mpPoll = window.setInterval(() => {
+    if ($("mp").classList.contains("hidden")) clearInterval(mpPoll);
+    else void pollMpServer();
+  }, 5000);
+}
+$("btn-mp").addEventListener("click", openMp);
+// an invite link (…/?room=CODE): the MULTIPLAYER screen, the code filled in
+const invited = new URLSearchParams(location.search).get("room");
+if (invited && !new URLSearchParams(location.search).has("quick")) {
+  $<HTMLInputElement>("mp-room").value = invited.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  $("mp-note").textContent = `You've been invited to room ${$<HTMLInputElement>("mp-room").value}. Type your name and press JOIN ROOM.`;
+  pendingInvite = true;
+}
+openMpPanel = openMp;
+// (the pause menu, online: the link to send friends)
+$("btn-invite-p").addEventListener("click", () => {
+  const code = game?.mpRoom;
+  if (!code) return;
+  const link = `${location.origin}${location.pathname}?room=${code}`;
+  void navigator.clipboard?.writeText(link).then(
+    () => ($("btn-invite-p").textContent = "LINK COPIED ✓"),
+    () => ($("btn-invite-p").textContent = link),
+  );
+  setTimeout(() => ($("btn-invite-p").textContent = "COPY INVITE LINK"), 2500);
+});
+function startMp(room: string) {
+  const name = $<HTMLInputElement>("mp-name").value.trim().slice(0, 16) || "OPERATOR";
+  const url = $<HTMLInputElement>("mp-url").value.trim() || mpDefaultUrl();
+  store.set("mpName", name);
+  store.set("mpRoom", room);
+  store.set("mpUrl", url === mpDefaultUrl() ? "" : url);
+  mpSettings = { url, room, name };
+  $("btn-invite-p").classList.remove("hidden");
+  stage = "nightshift";
+  show("mp", false);
+  goFullscreen();
+  void deploy();
+}
+const roomCode = () => Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ"[(Math.random() * 24) | 0]).join("");
+$("btn-mp-join").addEventListener("click", () => {
+  const room = $<HTMLInputElement>("mp-room").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!room) {
+    $("mp-note").textContent = "Type the room code your friend gave you — or CREATE ROOM to make one.";
+    return;
+  }
+  startMp(room);
+});
+$("btn-mp-create").addEventListener("click", () => startMp(roomCode()));
+$("btn-mp-quick").addEventListener("click", () => startMp(""));
 
 // ------------------------------------------------------------------ in-game flow
 function fmtStats(s: RoundStats) {
@@ -683,6 +781,7 @@ async function deploy() {
       devMode: toggles.devMode.value,
       // (touch: AIM is a toggle button)
       aimToggle: touch || toggles.aimToggle.value,
+      mp: mpSettings ?? undefined,
     },
     {
       onStateChange: onState,
@@ -963,6 +1062,9 @@ if (quick) {
   show("splash", false);
   engineReady = splashDone = true;
   stage = asStage(quick);
+  // (dev: ?quick=nightshift&mp=ROOM&name=X — straight into an online room)
+  const q = new URLSearchParams(location.search);
+  if (q.has("mp")) mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV" };
   void deploy();
 } else if (session.get("autodeploy")) {
   // "NEXT STAGE" from the result screen

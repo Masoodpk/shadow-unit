@@ -61,6 +61,7 @@ import { SLOT_LABEL, SLOT_ORDER, WEAPONS, slotOf } from "../config/weapons";
 import { buildArmsRig, loadArmsTemplate, loadGunContainer } from "../weapons/ArmsRig";
 import { buildVectorRig, loadVectorContainer } from "../weapons/VectorRig";
 import { ThrowingKnives, makeKnifeTemplate } from "../fx/ThrowingKnives";
+import { MpClient, type MpSettings } from "../net/MpClient";
 import { buildOffice2 } from "../level/Office2";
 import { buildCarbineRig, loadCarbineContainer } from "../weapons/CarbineRig";
 import { buildGrenadeRig, loadFlashbangContainer } from "../weapons/GrenadeRig";
@@ -105,6 +106,8 @@ export interface GameSettings {
   /** aim: toggle (click once) instead of hold */
   aimToggle?: boolean;
   devMode?: boolean;
+  /** online deathmatch (net/MpClient): no soldiers, no mission — the other players are the enemy */
+  mp?: MpSettings;
 }
 
 export interface GameCallbacks {
@@ -970,6 +973,12 @@ export class Game {
   private minimap!: Minimap;
   private nadeTpls!: Record<GrenadeType, Mesh>;
   private knives!: ThrowingKnives;
+  /** online deathmatch (null: single player) */
+  private mp: MpClient | null = null;
+  /** online: the room's code (for the invite link), once the server has said it */
+  get mpRoom() {
+    return this.mp?.roomCode || "";
+  }
   private explosions!: Explosions;
   private rockets!: Rockets;
   private glass?: Glass;
@@ -1155,6 +1164,8 @@ export class Game {
             ? await buildMetro(scene, this.env, this.mats, low, loadBar)
           : buildWhiteout(scene, this.mats, this.env);
     if (info.id === "whiteout") await plantWhiteoutTrees(scene).catch((e) => console.warn("pines failed to load", e));
+    // (online: the map without its garrison — the other players are the enemy)
+    if (this.settings.mp) this.level.enemySpawns = [];
     await tick();
     // authored set dressing (containers, trucks)
     let propMeshes: import("@babylonjs/core/Meshes/abstractMesh").AbstractMesh[] = [];
@@ -1248,6 +1259,7 @@ export class Game {
       },
       onShot: (origin, noise) => this.enemies.onPlayerShot(origin, noise),
       onNoAmmo: () => this.hud.setPrompt("NO RESERVE AMMO", true),
+      onFire: (origin, dir, weapon) => this.mp?.sendFire(origin, dir, weapon),
       onThrow: (type, origin, vel) => (type === "knife" ? this.knives.throw(origin, vel) : this.grenades.throw(type, origin, vel)),
       onNoGrenades: () => this.hud.flashPrompt("NO GRENADES"),
       onRocket: (origin, dir, cfg) => this.rockets.fire(origin, dir, cfg),
@@ -1797,6 +1809,8 @@ export class Game {
       this.hud.fallDamage(Math.max(amount, 10));
     };
     this.player.onDeath = () => {
+      // (online: a death is the server's business — it respawns you; the round goes on)
+      if (this.mp) return this.mp.localDeath();
       this.endTimer = 1.6;
       this.weapons.viewmodel.setActive(null);
     };
@@ -1827,6 +1841,17 @@ export class Game {
     await this.warmup();
     this.mats.freezeStatic();
     this.freezeCharacterMaterials();
+    if (this.settings.mp) {
+      this.mp = new MpClient(this.settings.mp, {
+        scene: this.scene, engine: this.engine, mats: this.mats, skins: this.skins, player: this.player, weapons: this.weapons,
+        fx: this.fx, audio: this.audio, nav: this.level.nav, playerSpawn: this.level.playerSpawn.pos,
+      });
+      const o = document.getElementById("obj-text");
+      if (o) o.textContent = "DEATHMATCH · MOST KILLS WINS";
+      // (no garrison to count)
+      const hc = document.getElementById("hostiles");
+      if (hc) hc.style.display = "none";
+    }
     progress(1, "Ready");
 
     this.engine.runRenderLoop(() => this.frame());
@@ -2326,6 +2351,7 @@ export class Game {
       this.updateDrops(dt);
       this.physics.step(dt);
       this.enemies.update(dt);
+      this.mp?.update(dt);
       if (this.hulk && this.state === "playing") {
         if (this.hulkDue >= 0) {
           this.hulkDue -= dt;
