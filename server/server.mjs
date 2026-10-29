@@ -34,6 +34,8 @@ const REGEN_DELAY_MS = 5000, REGEN_PER_S = 4;
 
 /** @type {Map<string, Room>} */
 const rooms = new Map();
+/** one player per browser (its own id, kept by the game): a second join from it replaces the first */
+const byCid = new Map();
 let nextId = 1;
 
 const now = () => Date.now();
@@ -97,8 +99,29 @@ class Room {
   }
 }
 
+/** a player out of his room (he left, dropped, or joined again from the same browser) */
+function leave(p) {
+  const room = p.room;
+  if (!room.players.has(p.id)) return;
+  room.players.delete(p.id);
+  if (byCid.get(p.cid) === p) byCid.delete(p.cid);
+  room.broadcast({ t: "leave", id: p.id, scores: room.scores() });
+  if (!room.players.size) rooms.delete(room.id);
+  console.log(`[${room.id}] ${p.name} left (${room.players.size})`);
+}
+
 function join(ws, msg) {
   const name = clean(msg.name, 16) || "OPERATOR";
+  const cid = clean(msg.cid, 40);
+  // the same browser again (a reload, a second tab, a rejoin after a drop): the old one goes, its score comes along
+  const old = cid ? byCid.get(cid) : null;
+  let carry = null;
+  if (old) {
+    if (old.room.id === clean(msg.room, 8).toUpperCase() || !msg.room) carry = { k: old.k, d: old.d };
+    send(old.ws, { t: "replaced" });
+    leave(old);
+    old.ws.close();
+  }
   let room;
   const want = clean(msg.room, 8).toUpperCase();
   if (want) room = rooms.get(want) ?? new Room(want, false);
@@ -111,7 +134,10 @@ function join(ws, msg) {
   if (!room.spawns.length && Array.isArray(msg.spawns)) room.spawns = msg.spawns.filter((s) => Array.isArray(s) && s.length === 4 && s.every(Number.isFinite)).slice(0, 64);
   const used = new Set([...room.players.values()].map((p) => p.kind));
   const p = { id: nextId++, ws, name, room, kind: KINDS.find((k) => !used.has(k)) ?? KINDS[room.players.size % KINDS.length], x: 0, y: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, stance: 0, weapon: "rifle", reload: 0, alive: false, hp: MAX_HP, k: 0, d: 0, respawnAt: 0, spawnedAt: 0, hits: [] };
+  p.cid = cid;
+  if (carry && room.phase === "playing") Object.assign(p, carry);
   room.players.set(p.id, p);
+  if (cid) byCid.set(cid, p);
   ws.player = p;
   send(ws, {
     t: "welcome",
@@ -162,10 +188,14 @@ function onHit(p, m) {
 
 // /health: what the game's MULTIPLAYER screen polls (it wakes a sleeping free host, and shows who's on)
 const http = createServer((req, res) => {
+  // (?room=CODE: who's in it — the invite screen shows it)
+  const want = clean(new URL(req.url ?? "/", "http://x").searchParams.get("room"), 8).toUpperCase();
+  const r = want ? rooms.get(want) : null;
+  const room = want ? (r ? { id: r.id, players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
   const players = [...rooms.values()].reduce((n, r) => n + r.players.size, 0);
   const open = [...rooms.values()].filter((r) => r.open && r.players.size < MAX_PLAYERS).length;
   res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store" });
-  res.end(JSON.stringify({ ok: true, rooms: rooms.size, players, openRooms: open, version: 1 }));
+  res.end(JSON.stringify({ ok: true, rooms: rooms.size, players, openRooms: open, room, version: 2 }));
 });
 const wss = new WebSocketServer({ server: http, maxPayload: 16 * 1024 });
 wss.on("connection", (ws) => {
@@ -191,16 +221,22 @@ wss.on("connection", (ws) => {
       p.room.broadcast({ t: "kill", by: p.id, to: p.id, head: false, w: "fall", scores: p.room.scores() });
     }
   });
-  ws.on("close", () => {
-    const p = ws.player;
-    if (!p) return;
-    const room = p.room;
-    room.players.delete(p.id);
-    room.broadcast({ t: "leave", id: p.id, scores: room.scores() });
-    if (!room.players.size) rooms.delete(room.id);
-    console.log(`[${room.id}] ${p.name} left (${room.players.size})`);
-  });
+  ws.on("close", () => ws.player && leave(ws.player));
+  ws.isAlive = true;
+  ws.on("pong", () => (ws.isAlive = true));
 });
+// a connection that stopped answering (a phone that switched apps, a dropped network) is closed within
+// 10 s, so nobody stays in a room as a ghost (browsers answer pings on their own, even in a hidden tab)
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (!ws.isAlive) {
+      ws.terminate();
+      continue;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 5000);
 setInterval(() => {
   for (const r of rooms.values()) r.tick();
 }, 1000 / TICK_HZ);

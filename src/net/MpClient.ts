@@ -185,6 +185,8 @@ export class MpClient {
     this.hud = new MpHud();
     this.spawns = spawnPoints(h.nav, h.playerSpawn);
     this.connect();
+    // (closing the tab or leaving: out of the room at once, not after the server notices)
+    addEventListener("pagehide", () => this.ws?.close());
   }
 
   get roomCode() {
@@ -196,6 +198,10 @@ export class MpClient {
   private welcomed = false;
   private t0 = performance.now();
 
+  /** this browser joined again somewhere else (another tab): this one stays out */
+  private replaced = false;
+  private paused = false;
+
   private connect() {
     let ws: WebSocket;
     try {
@@ -206,11 +212,11 @@ export class MpClient {
     }
     this.ws = ws;
     this.hud.status(this.tries === 0 ? "CONNECTING…" : `WAKING UP THE SERVER… ${Math.round((performance.now() - this.t0) / 1000)} S (IT CAN TAKE A MINUTE AFTER A QUIET SPELL)`);
-    ws.onopen = () => ws.send(JSON.stringify({ t: "join", room: this.cfg.room, name: this.cfg.name, spawns: this.spawns }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: "join", room: this.cfg.room, name: this.cfg.name, cid: clientId(), spawns: this.spawns }));
     ws.onmessage = (e) => this.onMessage(JSON.parse(String(e.data)));
     // (closed before it ever answered: the host is waking — try again; dropped mid-match: rejoin the room)
     ws.onclose = () => {
-      if (this.ws !== ws) return;
+      if (this.ws !== ws || this.replaced) return;
       const was = this.welcomed;
       this.welcomed = false;
       if (was) {
@@ -243,6 +249,11 @@ export class MpClient {
   }
 
   private onMessage(m: any) {
+    this.handle(m);
+    if (this.paused && (m.t === "join" || m.t === "leave" || m.t === "kill" || m.t === "end" || m.t === "start")) this.refreshBoard();
+  }
+
+  private handle(m: any) {
     switch (m.t) {
       case "welcome": {
         this.welcomed = true;
@@ -261,6 +272,10 @@ export class MpClient {
         this.hud.feed(`JOINED ROOM ${m.room} — SHARE THE CODE WITH YOUR FRIENDS`);
         break;
       }
+      case "replaced":
+        this.replaced = true;
+        this.hud.status("YOU JOINED FROM ANOTHER TAB OR WINDOW — THIS ONE IS DISCONNECTED");
+        break;
       case "full":
         this.hud.status(`ROOM ${m.room} IS FULL (8 PLAYERS)`);
         break;
@@ -349,6 +364,18 @@ export class MpClient {
     }
   }
 
+  /** the scoreboard: at the results, while Tab is held, while you're dead, and beside the pause menu */
+  private refreshBoard() {
+    this.hud.count = this.scores.length;
+    this.hud.board(this.scores, this.me, this.paused ? "paused" : this.hud.tabHeld ? "tab" : this.deadSince >= 0 ? "dead" : "off");
+  }
+
+  /** the game paused / resumed (frames stop while paused: the board is drawn from here, and on news) */
+  setPaused(on: boolean) {
+    this.paused = on;
+    this.refreshBoard();
+  }
+
   /** your shot, for everyone else to hear and see (the hits themselves come through applyHit) */
   sendFire(origin: Vector3, dir: Vector3, weapon: string) {
     this.send({ t: "fire", o: [+origin.x.toFixed(2), +origin.y.toFixed(2), +origin.z.toFixed(2)], d: [+dir.x.toFixed(3), +dir.y.toFixed(3), +dir.z.toFixed(3)], w: weapon });
@@ -383,7 +410,7 @@ export class MpClient {
     const left = Math.max(0, this.endsAt - performance.now());
     this.hud.count = this.scores.length;
     this.hud.clock(this.results ? 0 : left);
-    this.hud.board(this.scores, this.me, this.results || this.hud.tabHeld);
+    this.refreshBoard();
     this.hud.tags(
       [...this.remotes.values()].filter((r) => r.alive).map((r) => ({ name: this.names.get(r.id) ?? "?", at: r.position.add(new Vector3(0, 1.15, 0)) })),
       this.h.scene,
@@ -412,4 +439,20 @@ function spawnPoints(nav: NavGraph, from: Vector3): [number, number, number, num
     chosen.push(best);
   }
   return chosen.map((n) => [+n.p.x.toFixed(2), +n.p.y.toFixed(2), +n.p.z.toFixed(2), +Math.atan2(centre.x - n.p.x, centre.z - n.p.z).toFixed(3)]);
+}
+
+/** this browser's own id (kept), so a reload or a second tab replaces its player instead of adding one */
+function clientId(): string {
+  const q = new URLSearchParams(location.search).get("cid");
+  if (q) return q;
+  try {
+    let id = localStorage.getItem("su.mpcid");
+    if (!id) {
+      id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem("su.mpcid", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
 }

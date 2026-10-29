@@ -727,3 +727,11 @@ body.touch #dev, body.touch #aim-hint { display: none !important; }
 .mp-server.wait { color: #ffb347; }
 .mp-advanced { display: inline-block; margin-top: 10px; font-size: 10px; letter-spacing: .14em; color: var(--bone-dim, #889); text-decoration: none; opacity: .7; }
 .mp-advanced:hover { opacity: 1; }
+
+/* the invite screen: who's in the room */
+.mp-peek { margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #ff6a2b; background: rgba(0,0,0,0.3); font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; max-width: 520px; }
+.mp-peek .peek-h { color: #ff6a2b; margin-bottom: 6px; }
+.mp-peek .peek-empty { opacity: 0.75; letter-spacing: 0.04em; }
+.mp-peek .peek-row { display: grid; grid-template-columns: 1fr 48px 48px; padding: 3px 0; text-transform: uppercase; }
+.mp-peek .peek-row .k { color: #7ee08a; text-align: right; }
+.mp-peek .peek-row .d { color: #ff7a7a; text-align: right; }

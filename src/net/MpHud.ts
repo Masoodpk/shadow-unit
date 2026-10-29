@@ -19,16 +19,32 @@ const css = `
 #mp-hud .mp-feed div{background:#000a;padding:4px 8px;border-left:2px solid #888}
 #mp-hud .mp-feed .mine{border-color:#ff6a2b}
 #mp-hud .mp-feed .me{border-color:#e33}
-#mp-hud .mp-board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);min-width:360px;background:#0b0f14e6;border:1px solid #ffffff22;padding:16px 20px;display:none}
-#mp-hud .mp-board h3{margin:0 0 10px;font-size:13px;color:#ff6a2b}
-#mp-hud .mp-board table{width:100%;border-collapse:collapse;font-size:12px}
-#mp-hud .mp-board td{padding:5px 6px;border-top:1px solid #ffffff14}
-#mp-hud .mp-board td.n{text-align:right;width:52px}
-#mp-hud .mp-board tr.me td{color:#ff6a2b}
-#mp-hud .mp-board .sub{margin-top:10px;font-size:10px;opacity:.7}
-#mp-hud .mp-dead{position:absolute;top:58%;left:50%;transform:translateX(-50%);text-align:center;display:none}
-#mp-hud .mp-dead .big{font-size:26px;font-weight:700;color:#e33;text-shadow:0 1px 4px #000}
-#mp-hud .mp-dead .small{font-size:12px;margin-top:6px}
+#mp-hud .mp-board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,92vw);background:linear-gradient(180deg,#121a20f2,#0a0f13f2);border:1px solid #ffffff1f;border-top:3px solid #ff6a2b;border-radius:6px;box-shadow:0 12px 40px #000a;padding:14px 16px 12px;display:none;letter-spacing:.08em}
+#mp-hud .mp-board.dead{top:auto;bottom:6vh;transform:translateX(-50%)}
+#mp-hud .mp-board.paused{left:auto;right:5vw;transform:translateY(-50%);width:min(400px,44vw)}
+#mp-hud .mp-board .hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
+#mp-hud .mp-board h3{margin:0;white-space:nowrap;font-size:14px;color:#ff6a2b;letter-spacing:.14em}
+#mp-hud .mp-board .meta{font-size:10px;opacity:.7;white-space:nowrap}
+#mp-hud .mp-board .row{display:grid;grid-template-columns:26px 1fr 46px 46px;align-items:center;gap:6px;padding:7px 8px;border-radius:4px;font-size:13px}
+#mp-hud .mp-board .row+.row{margin-top:3px}
+#mp-hud .mp-board .row.head{font-size:9px;opacity:.55;padding:0 8px 2px}
+#mp-hud .mp-board .row.p{background:#ffffff0a}
+#mp-hud .mp-board .row.me{background:#ff6a2b2e;outline:1px solid #ff6a2b88}
+#mp-hud .mp-board .rk{font-weight:700;opacity:.8}
+#mp-hud .mp-board .row.lead .rk{color:#ffc43d;opacity:1}
+#mp-hud .mp-board .nm{display:flex;align-items:center;gap:8px;min-width:0;text-transform:none}
+#mp-hud .mp-board .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
+#mp-hud .mp-board .dot{flex:none;width:10px;height:10px;border-radius:50%}
+#mp-hud .mp-board .you{flex:none;font-size:9px;background:#ff6a2b;color:#111;padding:1px 5px;border-radius:3px;font-weight:700}
+#mp-hud .mp-board .k,#mp-hud .mp-board .d{text-align:center;font-weight:700}
+#mp-hud .mp-board .k{color:#7ee08a}
+#mp-hud .mp-board .d{color:#ff7a7a}
+#mp-hud .mp-board .row.head .k,#mp-hud .mp-board .row.head .d{color:inherit;font-weight:400}
+#mp-hud .mp-board .wait{margin-top:8px;padding:9px 10px;border:1px dashed #ffffff33;border-radius:4px;font-size:10px;line-height:1.6;opacity:.85;text-align:center}
+#mp-hud .mp-board .sub{margin-top:10px;font-size:10px;opacity:.7;text-align:center}
+#mp-hud .mp-dead{position:absolute;top:20%;left:50%;transform:translateX(-50%);text-align:center;display:none}
+#mp-hud .mp-dead .big{font-size:28px;font-weight:700;color:#e33;text-shadow:0 1px 4px #000}
+#mp-hud .mp-dead .small{font-size:13px;margin-top:6px;text-shadow:0 1px 3px #000}
 #mp-hud .mp-tag{position:absolute;transform:translate(-50%,-100%);font-size:10px;color:#ff8a8a;text-shadow:0 1px 2px #000;white-space:nowrap}
 `;
 
@@ -44,6 +60,9 @@ export class MpHud {
   private tagEls: HTMLDivElement[] = [];
   private resultsUntil = 0;
   private final: ScoreRow[] | null = null;
+  private boardHtml = "";
+  /** match time left (ms) */
+  private left = 0;
   room = "";
   /** players in the room, you included */
   count = 0;
@@ -82,6 +101,7 @@ export class MpHud {
   }
 
   clock(ms: number) {
+    this.left = ms;
     const s = Math.ceil(ms / 1000);
     this.clockEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     this.clockEl.style.color = s <= 30 ? "#ff6a2b" : "";
@@ -99,20 +119,35 @@ export class MpHud {
     while (this.feedEl.children.length > 6) this.feedEl.firstChild?.remove();
   }
 
-  board(scores: ScoreRow[], me: number, show: boolean) {
+  /** the scoreboard. "tab": centre; "dead": under the death message; "paused": beside the pause menu */
+  board(scores: ScoreRow[], me: number, mode: "off" | "tab" | "dead" | "paused") {
     const final = this.final && performance.now() < this.resultsUntil;
     const rows = final ? this.final! : scores;
-    if (!show && !final) {
+    if (mode === "off" && !final) {
       this.boardEl.style.display = "none";
       return;
     }
     const sorted = [...rows].sort((a, b) => b.k - a.k || a.d - b.d);
-    const title = final ? (sorted[0] ? `MATCH OVER — ${sorted[0].id === me ? "YOU WIN" : sorted[0].name + " WINS"}` : "MATCH OVER") : "SCOREBOARD";
-    const sub = final ? `NEXT MATCH IN ${Math.max(0, Math.ceil((this.resultsUntil - performance.now()) / 1000))} S` : "";
-    this.boardEl.innerHTML =
-      `<h3>${title}</h3><table><tr><td>#</td><td>PLAYER</td><td class="n">KILLS</td><td class="n">DEATHS</td></tr>` +
-      sorted.map((r, i) => `<tr class="${r.id === me ? "me" : ""}"><td>${i + 1}</td><td>${esc(r.name)}${r.id === me ? " (YOU)" : ""}</td><td class="n">${r.k}</td><td class="n">${r.d}</td></tr>`).join("") +
-      `</table>${sub ? `<div class="sub">${sub}</div>` : ""}`;
+    const title = final ? (sorted[0] ? `MATCH OVER — ${sorted[0].id === me ? "YOU WIN!" : esc(sorted[0].name) + " WINS"}` : "MATCH OVER") : "PLAYERS IN THIS ROOM";
+    const meta = `ROOM ${esc(this.room)} · ${rows.length}/8${final ? "" : ` · ${fmt(this.left)} LEFT`}`;
+    const sub = final ? `NEXT MATCH IN ${Math.max(0, Math.ceil((this.resultsUntil - performance.now()) / 1000))} S` : mode === "tab" ? "RELEASE TAB TO CLOSE" : "";
+    const lead = sorted[0]?.k ?? 0;
+    const html =
+      `<div class="hd"><h3>${title}</h3><div class="meta">${meta}</div></div>` +
+      `<div class="row head"><div>#</div><div>PLAYER</div><div class="k">KILLS</div><div class="d">DEATHS</div></div>` +
+      sorted
+        .map(
+          (r, i) =>
+            `<div class="row p${r.id === me ? " me" : ""}${i === 0 && lead > 0 ? " lead" : ""}"><div class="rk">${i === 0 && lead > 0 ? "★" : i + 1}</div>` +
+            `<div class="nm"><i class="dot" style="background:${color(r.id)}"></i><span>${esc(r.name)}</span>${r.id === me ? '<b class="you">YOU</b>' : ""}</div>` +
+            `<div class="k">${r.k}</div><div class="d">${r.d}</div></div>`,
+        )
+        .join("") +
+      (rows.length <= 1 && !final ? `<div class="wait">WAITING FOR FRIENDS…<br>PRESS ESC → <b>COPY INVITE LINK</b> AND SEND IT, OR TELL THEM ROOM CODE <b>${esc(this.room)}</b></div>` : "") +
+      (sub ? `<div class="sub">${sub}</div>` : "");
+    // (only touched when it changed: this runs every frame)
+    if (html !== this.boardHtml) this.boardEl.innerHTML = this.boardHtml = html;
+    this.boardEl.className = `mp-board${final ? "" : mode === "dead" ? " dead" : mode === "paused" ? " paused" : ""}`;
     this.boardEl.style.display = "block";
   }
 
@@ -157,4 +192,11 @@ export class MpHud {
   }
 }
 
+const fmt = (ms: number) => {
+  const s = Math.ceil(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+/** each player's own colour (the same on every screen: from his id) */
+const PALETTE = ["#4fc3f7", "#ffb74d", "#81c784", "#ba68c8", "#f06292", "#fff176", "#4db6ac", "#e57373"];
+const color = (id: number) => PALETTE[id % PALETTE.length];
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);

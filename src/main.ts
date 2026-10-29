@@ -578,15 +578,34 @@ async function pollMpServer() {
   try {
     const ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch(mpHealthUrl(url), { signal: ctl.signal, cache: "no-store" });
+    const code = invitedRoom();
+    const r = await fetch(mpHealthUrl(url) + (code ? `?room=${code}` : ""), { signal: ctl.signal, cache: "no-store" });
     clearTimeout(to);
-    const j = (await r.json()) as { players: number; rooms: number };
+    type Room = { id: string; players: { name: string; k: number; d: number }[]; max: number } | null;
+    const j = (await r.json()) as { players: number; rooms: number; room?: Room };
     el.className = "mp-server ok";
     el.textContent = `● SERVER ONLINE · ${j.players} PLAYING IN ${j.rooms} ROOM${j.rooms === 1 ? "" : "S"} · ${Math.round(performance.now() - t0)} MS`;
+    if (code) showRoomPeek(code, j.room ?? null);
   } catch {
     el.className = "mp-server wait";
     el.textContent = "◌ WAKING UP THE SERVER — UP TO A MINUTE AFTER A QUIET SPELL. YOU CAN JOIN NOW: IT KEEPS TRYING.";
   }
+}
+/** the room an invite link pointed to (while the invite screen is up) */
+const invitedRoom = () => (inviteCode && $<HTMLInputElement>("mp-room").value === inviteCode ? inviteCode : "");
+let inviteCode = "";
+/** who's in the invited room right now, under the server line */
+function showRoomPeek(code: string, room: { players: { name: string; k: number; d: number }[]; max: number } | null) {
+  const el = $("mp-peek");
+  el.classList.remove("hidden");
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  if (!room || !room.players.length) {
+    el.innerHTML = `<div class="peek-h">ROOM ${code}</div><div class="peek-empty">Nobody's in it yet — join, and it starts when your friend comes in.</div>`;
+    return;
+  }
+  el.innerHTML =
+    `<div class="peek-h">IN ROOM ${code} NOW · ${room.players.length}/${room.max}</div>` +
+    room.players.map((p) => `<div class="peek-row"><span>${esc(p.name)}</span><b class="k">${p.k} K</b><b class="d">${p.d} D</b></div>`).join("");
 }
 function openMp() {
   openPanel("mp", "menu");
@@ -602,7 +621,7 @@ $("btn-mp").addEventListener("click", openMp);
 const invited = new URLSearchParams(location.search).get("room");
 if (invited && !new URLSearchParams(location.search).has("quick")) {
   $<HTMLInputElement>("mp-room").value = invited.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-  const code = $<HTMLInputElement>("mp-room").value;
+  const code = (inviteCode = $<HTMLInputElement>("mp-room").value);
   $("mp-note").textContent = `You've been invited to room ${code}. Type your name and press JOIN ROOM ${code}.`;
   // (an invite has one way in: CREATE or QUICK PLAY here would put the friend in another room)
   $("btn-mp-join").textContent = `JOIN ROOM ${code}`;
@@ -630,6 +649,8 @@ function startMp(room: string) {
   store.set("mpUrl", url === mpDefaultUrl() ? "" : url);
   mpSettings = { url, room, name };
   $("btn-invite-p").classList.remove("hidden");
+  // (online, RESTART would put you back at the start on your own: the server decides spawns)
+  $("btn-restart-p").classList.add("hidden");
   stage = "nightshift";
   show("mp", false);
   goFullscreen();

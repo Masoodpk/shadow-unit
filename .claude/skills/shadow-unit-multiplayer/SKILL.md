@@ -21,6 +21,12 @@ Read README.md "Online deathmatch, phase 1" first: it has the how-to-play steps 
 - The Vercel site is static: it can't host the WebSocket server. A page on https must use `wss://`.
 - Invite links: `/?room=CODE` opens the MULTIPLAYER screen with the room filled in; the pause menu has COPY INVITE LINK.
 
+## No ghosts, no duplicates
+
+- Each browser has its own id (`clientId()` in MpClient, localStorage `su.mpcid`; `?cid=` overrides it, which two-tab tests on one machine need). A join with an id already on the server replaces that player (the old tab gets `{t:"replaced"}` and stops reconnecting); the score carries over within the same room.
+- The server pings every 5 s and terminates a connection that missed a pong (gone within 10 s). The client closes its socket on `pagehide`.
+- `/health?room=CODE` lists who's in a room (the invite screen shows it). The scoreboard (`MpHud.board`) shows on Tab, on the death screen, beside the pause menu (`Game.setState` → `mp.setPaused`) and at the results.
+
 ## Testing (two players, one machine)
 
 1. `MP_DEV=1 MP_MATCH_S=20 node server/server.mjs`, in the background (MP_DEV allows teleports for tests; a short match tests the end and the results).

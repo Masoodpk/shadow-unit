@@ -2245,6 +2245,7 @@ export class Game {
     // its wind and its score fall silent there and the menu music plays; the results fade out gently)
     this.audio?.setPaused(s !== "playing", s === "dead" || s === "won" ? 0.6 : 0.05);
     if (this.mission instanceof TapeMission) this.mission.setPaused(s === "paused");
+    this.mp?.setPaused(s === "paused");
     if (s === "dead" || s === "won") {
       // the mission's subtitles / bars don't belong on the results screen
       this.mission?.hud.reset();
