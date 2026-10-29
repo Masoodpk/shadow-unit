@@ -45,6 +45,8 @@ export class MpHud {
   private resultsUntil = 0;
   private final: ScoreRow[] | null = null;
   room = "";
+  /** players in the room, you included */
+  count = 0;
   tabHeld = false;
 
   constructor() {
@@ -83,7 +85,9 @@ export class MpHud {
     const s = Math.ceil(ms / 1000);
     this.clockEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     this.clockEl.style.color = s <= 30 ? "#ff6a2b" : "";
-    this.roomEl.innerHTML = this.room ? `ROOM <b>${this.room}</b> · DEATHMATCH · HOLD TAB FOR SCORES` : "";
+    this.roomEl.innerHTML = this.room
+      ? `ROOM <b>${this.room}</b> · ${this.count <= 1 ? "<b>ONLY YOU HERE</b> — ESC → COPY INVITE LINK" : `${this.count} PLAYERS`} · HOLD TAB FOR SCORES`
+      : "";
   }
 
   feed(text: string, cls = "") {

@@ -381,6 +381,7 @@ export class MpClient {
     }
     // HUD: the clock, the scoreboard while Tab is held, name tags
     const left = Math.max(0, this.endsAt - performance.now());
+    this.hud.count = this.scores.length;
     this.hud.clock(this.results ? 0 : left);
     this.hud.board(this.scores, this.me, this.results || this.hud.tabHeld);
     this.hud.tags(

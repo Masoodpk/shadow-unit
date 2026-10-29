@@ -602,7 +602,12 @@ $("btn-mp").addEventListener("click", openMp);
 const invited = new URLSearchParams(location.search).get("room");
 if (invited && !new URLSearchParams(location.search).has("quick")) {
   $<HTMLInputElement>("mp-room").value = invited.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-  $("mp-note").textContent = `You've been invited to room ${$<HTMLInputElement>("mp-room").value}. Type your name and press JOIN ROOM.`;
+  const code = $<HTMLInputElement>("mp-room").value;
+  $("mp-note").textContent = `You've been invited to room ${code}. Type your name and press JOIN ROOM ${code}.`;
+  // (an invite has one way in: CREATE or QUICK PLAY here would put the friend in another room)
+  $("btn-mp-join").textContent = `JOIN ROOM ${code}`;
+  $("btn-mp-create").classList.add("hidden");
+  $("btn-mp-quick").classList.add("hidden");
   pendingInvite = true;
 }
 openMpPanel = openMp;
