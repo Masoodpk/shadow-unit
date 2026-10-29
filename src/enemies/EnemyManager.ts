@@ -107,7 +107,9 @@ export class EnemyManager {
   attachSkins(skins: SoldierSkins) {
     // (a stage that brings its own soldiers — the Underground: the Polish soldier and the soldier girl, the
     // Winter Soldier its boss — dresses them in those; otherwise the FSB operator and Mark, alternating)
-    const own = skins.kinds.filter((k) => k !== "winter" && k !== "fsb" && k !== "mark");
+    // (every character the stage loaded, but its boss, takes a turn: Sandstorm and Frostline mix the
+    // operators with the S.W.A.T. operator)
+    const own = skins.kinds.filter((k) => k !== "winter");
     const boss = skins.kinds.includes("winter") ? "winter" : "fsb";
     this.enemies.forEach((e, i) => e.attachSkin(skins.create(e.boss ? boss : own.length ? own[i % own.length] : i % 2 === 0 ? "fsb" : "mark", e.parts, i)));
   }

@@ -35,6 +35,10 @@ export interface RigState {
   /** knife: attack progress 0..1 (or -1) and which attack */
   swing?: number | null;
   swingKind?: string | null;
+  /** gun inspect: progress 0..1 (or -1) */
+  inspect?: number;
+  /** rounds per second (the bolt's cycle on a shot) */
+  rpm?: number;
   dt: number;
 }
 

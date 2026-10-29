@@ -21,9 +21,11 @@ export type Action =
   | "aim"
   | "reload"
   | "melee"
+  | "inspect"
   | "knife"
   | "grenade"
   | "grenadeType"
+  | "throwKnife"
   | "lastWeapon"
   | "use"
   | "weapon1"
@@ -63,9 +65,11 @@ export const ACTIONS: ActionDef[] = [
   { id: "aim", label: "Aim down sights", group: "COMBAT", defaults: ["Mouse2", "KeyT"] },
   { id: "reload", label: "Reload", group: "COMBAT", defaults: ["KeyR"] },
   { id: "melee", label: "Melee / quick strike", group: "COMBAT", defaults: ["KeyV", "Mouse1"] },
+  { id: "inspect", label: "Inspect weapon", group: "COMBAT", defaults: ["Period"] },
   { id: "knife", label: "Quick knife (any time, mid-reload too)", group: "COMBAT", defaults: ["KeyK"] },
   { id: "grenade", label: "Throw grenade", group: "COMBAT", defaults: ["KeyG"] },
   { id: "grenadeType", label: "Next grenade type", group: "COMBAT", defaults: ["KeyB"] },
+  { id: "throwKnife", label: "Throw knife (hold: ready · let go: throw)", group: "COMBAT", defaults: ["KeyP", "Mouse3"] },
   { id: "lastWeapon", label: "Last weapon", group: "WEAPONS", defaults: ["KeyX"] },
   { id: "weapon1", label: "Assault rifle", group: "WEAPONS", defaults: ["Digit1"] },
   { id: "weapon2", label: "SMG", group: "WEAPONS", defaults: ["Digit2"] },
@@ -86,7 +90,7 @@ export const ACTIONS: ActionDef[] = [
 export const RESERVED = new Set(["Escape", "Backquote", "F3", "MetaLeft", "MetaRight", "ControlLeft", "ControlRight", "Tab", "F5", "F11", "F12"]);
 
 const STORE_KEY = "saltline.binds";
-const VERSION = 5;
+const VERSION = 8;
 
 export class Bindings {
   private map = new Map<Action, string[]>();
@@ -181,6 +185,12 @@ export class Bindings {
       // v4: number keys pick loadout slots (primary, pistol, launcher, knife, grenades), not one gun each
       // v5: seven slots (assault, SMG, sniper, pistol, launcher, knife, grenades)
       if ((data.v ?? 0) < 5) for (let i = 1; i <= 10; i++) delete data.binds["weapon" + i];
+      // v8: inspect and the knife throw left Y and U (developer mode's AI and time-scale keys)
+      if ((data.v ?? 0) < 8) {
+        const was = (a: string, codes: string[]) => Array.isArray(data.binds[a]) && data.binds[a].join() === codes.join();
+        if (was("inspect", ["KeyY"])) delete data.binds.inspect;
+        if (was("throwKnife", ["KeyU", "Mouse3"])) delete data.binds.throwKnife;
+      }
       for (const d of ACTIONS) {
         const saved = data.binds[d.id];
         if (Array.isArray(saved)) this.map.set(d.id, saved.filter((c) => typeof c === "string" && !RESERVED.has(c)).slice(0, 2));

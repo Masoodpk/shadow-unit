@@ -68,6 +68,7 @@ const ROCKET_TUBE = svg(
 );
 
 export const WEAPON_ICONS: Record<string, string> = {
+  carbine: RIFLE,
   rifle: RIFLE,
   ak47: AK,
   m5: CARBINE,
@@ -85,4 +86,6 @@ export const GRENADE_ICONS: Record<string, string> = {
   flame: svg(48, 56, `<rect x="12" y="16" width="22" height="36" rx="5"/><rect x="16" y="9" width="14" height="8" rx="2"/><path d="M30 10h8l3 12-4 2z"/><path d="M23 26c5 6 6 10 2 15-3-3-6-7-2-15z" fill-opacity="0.35"/>`),
   plasma: svg(48, 56, `<circle cx="23" cy="32" r="16"/><circle cx="23" cy="32" r="7" fill-opacity="0.35"/><rect x="18" y="10" width="10" height="7" rx="2"/>`),
   flash: svg(48, 56, `<rect x="14" y="14" width="18" height="38" rx="4"/><rect x="17" y="7" width="12" height="8" rx="2"/><path d="M29 8h8l3 12-4 2z"/><rect x="14" y="24" width="18" height="3" fill-opacity="0.35"/><rect x="14" y="38" width="18" height="3" fill-opacity="0.35"/>`),
+  // the throwing knife, blade up: grip, guard, tapering blade
+  knife: svg(48, 56, `<rect x="20" y="38" width="8" height="16" rx="2"/><rect x="14" y="34" width="20" height="4" rx="1"/><path d="M20 34V14L24 2l4 12v20z"/><path d="M24 6v26" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5" fill="none"/>`),
 };

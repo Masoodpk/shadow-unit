@@ -23,7 +23,7 @@
       <canvas id="minimap"></canvas>
       <div id="dmg-indicators"></div>
       <div id="objective">
-        <span class="tag">OBJ</span><span id="obj-text">CLEAR RED DUNE</span>
+        <span class="tag">OBJ</span><span id="obj-text">OBJECTIVE</span>
         <span id="hostiles"><b id="hostile-count">9</b> HOSTILES</span>
       </div>
       <div id="cheat-tags"><span id="tag-god" class="hidden">GOD MODE</span><span id="tag-arsenal" class="hidden">ALL WEAPONS</span></div>
@@ -79,6 +79,7 @@
           <button id="btn-settings" class="btn">SETTINGS</button>
           <button id="btn-controls" class="btn">CONTROLS</button>
           <button id="btn-credits" class="btn">CREDITS</button>
+          <button id="btn-fullscreen" class="btn fs-btn">FULL SCREEN</button>
         </nav>
         <div class="menu-hint">Tip: <b id="hint-lean">Q</b>/<b id="hint-lean2">E</b> peek around cover · <b id="hint-prone">Z</b> go prone · every key can be changed in CONTROLS</div>
       </div>
@@ -125,6 +126,7 @@
             <span class="note-inline">applies on next deploy</span>
           </label>
           <label class="touch-only">TOUCH BUTTON SIZE <input id="set-touch" type="range" min="0.7" max="1.4" step="0.05" value="1" /><output id="set-touch-val">100%</output></label>
+          <label class="toggle desktop-only">FULL SCREEN WHILE PLAYING <input id="set-fullscreen" type="checkbox" checked /><span class="sw"></span><output id="set-fullscreen-val">ON</output></label>
           <label class="toggle desktop-only">AIM TOGGLE (laptop) <input id="set-aim" type="checkbox" checked /><span class="sw"></span><output id="set-aim-val">ON</output></label>
           <label class="toggle">SOUND <input id="set-sound" type="checkbox" checked /><span class="sw"></span><output id="set-sound-val">ON</output></label>
           <label class="toggle">MENU MUSIC <input id="set-menumusic" type="checkbox" checked /><span class="sw"></span><output id="set-menumusic-val">ON</output></label>
@@ -179,13 +181,15 @@
           <div>“LAW Light Anti-Tank weapon M72” by Vziuh (CC BY 4.0)</div>
           <div>“DZJ-08 Rocket Launcher” by Martini-SF (CC BY-NC 4.0 — non-commercial)</div>
           <div>“CS_OFFICE (CS:GO Real Light version)” by Neo_minigan (CC BY 4.0, based on Valve's cs_office)</div>
+          <div>“Cs_office with real light” by Neo_minigan (CC BY 4.0, after Valve's cs_office) — Black Ledger</div>
           <div>“Shipping Containers” by Arsen Ismailov · “Psx Cargo Containers” by Brainsick Games (CC BY 4.0)</div>
           <div>“Army Truck” by foxyvfx7867 · “Transformers Universe: Army Truck” by Primus03 (CC BY 4.0)</div>
           <div>“Tree low poly lowpoly” by 00amza (CC BY 4.0)</div>
+          <div>“fps animated carbine” by DJMaesen (CC BY 4.0) — the carbine viewmodel · “S.W.A.T. Operator” by Mateusz Woliński (CC BY 4.0) — the S.W.A.T. operator</div>
           <div>“De_Dust 2 with real light” by Neo_minigan (CC BY 4.0, after Valve's de_dust2) — Sandstorm</div>
           <div>“Prisoner Hostage Low Poly Character” by 00amza (CC BY 4.0) — Dr. Cole</div>
           <div>“Handcuffs” by polarb · “Locker Room - 1MB” by Mehdi Shahsavan (CC BY 4.0) — Sandstorm</div>
-          <div>“Hulk | Marvel Rivals” by King_45 (CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use) — Red Dune</div>
+          <div>“Hulk | Marvel Rivals” by King_45 (CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use)</div>
           <div>“Spiderman Rigged” by nitwit.friends (CC BY 4.0, Sketchfab; Mixamo rig and his own clips; character © Marvel — personal, non-commercial use)</div>
           <div>“Iron man Flying animation” by 19503 (CC BY 4.0, Sketchfab; Mixamo rig and flying clip; character © Marvel — personal, non-commercial use)</div>
           <div>“Deadpool MMD PORT FBX” by Izann2842_o, “Scifi Gun” by Max (both CC BY 4.0, Sketchfab; character © Marvel — personal, non-commercial use)</div>
@@ -217,8 +221,8 @@
     <div id="loading" class="screen hidden">
       <video class="load-video" src="video/loading.mp4" muted loop playsinline preload="auto"></video>
       <div class="menu-inner">
-        <div id="load-kicker" class="brand-kicker">INSERTING // RED DUNE</div>
-        <h2 id="load-title">RED DUNE</h2>
+        <div id="load-kicker" class="brand-kicker">INSERTING</div>
+        <h2 id="load-title">LOADING</h2>
         <div class="load-row"><div class="load-bar"><div id="load-fill"></div></div><span id="load-pct" class="load-pct">0%</span></div>
         <div id="load-step" class="load-step">Preparing…</div>
         <div id="load-tips" class="menu-hint"></div>
@@ -255,6 +259,7 @@
           <button id="btn-controls-p" class="btn">CONTROLS</button>
           <button id="btn-restart-p" class="btn">RESTART</button>
           <button id="btn-mainmenu-p" class="btn">MAIN MENU</button>
+          <button id="btn-fullscreen-p" class="btn fs-btn">FULL SCREEN</button>
         </nav>
         <div id="resume-note" class="note"></div>
       </div>
@@ -262,7 +267,7 @@
 
     <div id="result" class="screen hidden">
       <div class="menu-inner">
-        <div id="result-kicker" class="brand-kicker">RED DUNE</div>
+        <div id="result-kicker" class="brand-kicker">OPERATION</div>
         <h2 id="result-title">MISSION FAILED</h2>
         <div id="result-stats"></div>
         <nav class="menu-buttons">

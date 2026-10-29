@@ -4,7 +4,7 @@ import { Scene } from "@babylonjs/core/scene";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { BodyZone, HitKind, SurfaceType } from "../config/game";
-import { GRENADE, GRENADE_ORDER, GRENADE_TYPES, GrenadeType, LoadoutSlot, ProjectileConfig, SLOT_ORDER, WEAPONS, WEAPON_ORDER, WeaponConfig, WeaponId, slotOf } from "../config/weapons";
+import { GRENADE, GRENADE_ORDER, GRENADE_TYPES, THROWING_KNIFE, GrenadeType, LoadoutSlot, ProjectileConfig, SLOT_ORDER, WEAPONS, WEAPON_ORDER, WeaponConfig, WeaponId, slotOf } from "../config/weapons";
 import type { SwingKind } from "./KnifeRigFP";
 import { AudioEngine } from "../audio/AudioEngine";
 import { Input } from "../core/Input";
@@ -78,7 +78,9 @@ export class WeaponManager {
   private returnTo = -1;
   private quickThrow = false;
   /** grenade belt: count per type and the type in hand */
-  readonly inventory = { frag: 0, flame: 0, plasma: 0, flash: 0 } as Record<GrenadeType, number>;
+  readonly inventory = { frag: 0, flame: 0, plasma: 0, flash: 0, knife: 0 } as Record<GrenadeType, number>;
+  /** a quick knife throw (its own key): the belt type to go back to once it's thrown (null: none) */
+  private knifeThrow: { restore: GrenadeType } | null = null;
   nadeType: GrenadeType = "frag";
   private thrown = false;
   adsT = 0;
@@ -178,10 +180,40 @@ export class WeaponManager {
     }
     return false;
   }
+  /** the belt's count changed outside a throw (a knife taken back): the hand shows it */
+  syncBelt() {
+    const gw = this.grenadeWeapon;
+    if (gw && gw.throwPhase === "idle") gw.mag = this.inventory[this.nadeType];
+  }
   refillGrenades() {
     for (const t of GRENADE_ORDER) this.inventory[t] = GRENADE_TYPES[t].count;
     const gw = this.grenadeWeapon;
     if (gw && gw.throwPhase === "idle") gw.mag = this.inventory[this.nadeType];
+  }
+
+  /**
+   * The throwing knife's own key, from whatever's in your hands: the belt turns to the knives, the gun
+   * goes down and the knife comes up — held back, ready, for as long as the key is held; let go and
+   * it's thrown — then back to the gun and the belt's grenade type.
+   */
+  private startKnifeThrow() {
+    const gi = this.grenadeSlot;
+    if (gi < 0 || this.knifeThrow) return;
+    if (this.inventory.knife <= 0) {
+      this.events.onNoGrenades?.();
+      return;
+    }
+    const gw = this.weapons[gi];
+    if (this.current === gi && gw.throwPhase !== "idle") return;
+    this.knifeThrow = { restore: this.nadeType };
+    this.setGrenadeType("knife");
+    if (this.current === gi) {
+      if (gw.state === "ready") gw.autoThrow = true;
+      return;
+    }
+    this.returnTo = this.pending >= 0 ? this.pending : this.current;
+    this.quickThrow = true;
+    this.requestSwitch(gi);
   }
 
   /** slot of a weapon */
@@ -405,6 +437,7 @@ export class WeaponManager {
     this.pending = -1;
     this.returnTo = -1;
     this.quickThrow = false;
+    this.knifeThrow = null;
     this.thrown = false;
     this.adsT = 0;
     this.sprintT = 0;
@@ -570,6 +603,25 @@ export class WeaponManager {
     this.audio.play("meleeSwing", { volume: 0.6, pitchVar: 0.08 });
   }
 
+  /** gun inspect (the carbine's authored check): progress 0..1, -1 = none; any action cuts it short */
+  inspectT = -1;
+  private startInspect() {
+    const w = this.weapon;
+    if (w.cfg.id !== "carbine" || w.state !== "ready" || this.inspectT >= 0 || this.meleeT >= 0 || this.player.sprinting || this.adsT > 0.05) return;
+    this.inspectT = 0;
+  }
+  private updateInspect(dt: number) {
+    if (this.inspectT < 0) return;
+    const w = this.weapon;
+    const inp = this.input;
+    if (w.cfg.id !== "carbine" || w.state !== "ready" || this.meleeT >= 0 || this.player.sprinting || inp.fireHeld || inp.adsHeld || !this.player.alive) {
+      this.inspectT = -1;
+      return;
+    }
+    this.inspectT += dt / (1.6 / 1.0);
+    if (this.inspectT >= 1) this.inspectT = -1;
+  }
+
   private updateMelee(dt: number) {
     this.meleeCd -= dt;
     if (this.meleeT < 0) return;
@@ -635,6 +687,8 @@ export class WeaponManager {
     const inp = this.input;
     const alive = this.player.alive;
     if (alive && inp.hit("melee")) this.startMelee();
+    if (alive && inp.hit("inspect")) this.startInspect();
+    this.updateInspect(dt);
     if (alive && inp.hit("knife")) this.startQuickKnife();
     this.updateMelee(dt);
     // knife: fire = slash (alternating), aim button = heavy stab; a click just before it's ready still counts
@@ -684,6 +738,7 @@ export class WeaponManager {
           }
         } else this.events.onNoGrenades?.();
       }
+      if (inp.hit("throwKnife")) this.startKnifeThrow();
       if (inp.hit("sprint")) inp.cancelAim();
     }
 
@@ -711,8 +766,21 @@ export class WeaponManager {
       this.quickThrow = false;
     }
     const pressAge = (performance.now() - inp.firePressTime) / 1000;
+    // a quick knife throw whose switch never happened (refused, or another weapon picked meanwhile):
+    // dropped, or it would hold the key off for good
+    const gs = this.grenadeSlot;
+    if (this.knifeThrow && this.current !== gs && this.pending !== gs && !this.thrown) {
+      const t = this.knifeThrow.restore;
+      this.knifeThrow = null;
+      this.quickThrow = false;
+      if (t !== "knife" && this.inventory[t] > 0) this.setGrenadeType(t);
+    }
+    w.noPin = w.isGrenade && this.nadeType === "knife";
+    w.throwRate = w.noPin ? THROWING_KNIFE.throwRate : 1;
+    // (a quick knife throw is held ready by its own key)
+    const knifeHeld = !!this.knifeThrow && w.isGrenade && inp.held("throwKnife");
     const shots = w.update(dt, {
-      triggerHeld: alive && this.meleeT < 0 && inp.fireHeld && !(this.player.sprinting && !w.isGrenade),
+      triggerHeld: alive && this.meleeT < 0 && (inp.fireHeld || knifeHeld) && !(this.player.sprinting && !w.isGrenade),
       triggerPressed: alive && this.meleeT < 0 && inp.firePressed,
       pressAge: alive ? pressAge : 99,
       pressId: inp.firePressTime,
@@ -732,6 +800,11 @@ export class WeaponManager {
         const back = this.isCarried(this.returnTo) ? this.returnTo : this.isCarried(this.previous) && !this.weapons[this.previous].isGrenade ? this.previous : (["primary", "smg", "sniper", "secondary"] as LoadoutSlot[]).map((s) => this.carried[s]).find((i) => i >= 0) ?? this.carried.melee;
         this.returnTo = -1;
         this.requestSwitch(back);
+      }
+      if (this.knifeThrow) {
+        const t = this.knifeThrow.restore;
+        this.knifeThrow = null;
+        if (t !== "knife" && this.inventory[t] > 0) this.setGrenadeType(t);
       }
     }
 
@@ -762,6 +835,8 @@ export class WeaponManager {
       lob: w.lob,
       swing: w.cfg.knife ? this.knifeT : null,
       swingKind: w.cfg.knife ? this.knifeKind : null,
+      inspect: this.inspectT,
+      rpm: w.cfg.rpm,
       dt,
     });
     const v = this.player.velocity;
@@ -828,6 +903,16 @@ export class WeaponManager {
     const block = this.scene.pickWithRay(this.ray, this.bulletPredicate as never, false);
     const origin = block?.hit ? eye.add(this.fwd.scale(0.05)) : this.muzzleWorld.clone();
     const lob = w.lob;
+    if (GRENADE_TYPES[this.nadeType].knife) {
+      // a knife flies where you look: from the eye line (so it meets the crosshair), fast and nearly flat
+      this.throwVel.copyFrom(this.fwd).scaleInPlace(THROWING_KNIFE.speed);
+      this.throwVel.y += THROWING_KNIFE.lift;
+      this.throwVel.addInPlace(this.tmp.copyFrom(this.player.velocity).scaleInPlace(0.5));
+      const from = block?.hit ? origin : eye.add(this.fwd.scale(0.35)).addInPlace(this.right.scale(0.12)).addInPlace(this.up.scale(-0.04));
+      this.events.onThrow(this.nadeType, from, this.throwVel.clone());
+      this.thrown = true;
+      return;
+    }
     const speed = (lob ? GRENADE.lobSpeed : GRENADE.throwSpeed) * GRENADE_TYPES[this.nadeType].speed;
     this.throwVel.copyFrom(this.fwd).scaleInPlace(speed);
     this.throwVel.y += lob ? 1.8 : GRENADE.upBoost;

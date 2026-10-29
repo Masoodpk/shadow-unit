@@ -5,6 +5,8 @@ export interface MinimapEnemy {
   position: Vector3;
   heading: number;
   alive: boolean;
+  /** not in play yet (a mission's later soldiers, held off the map until their part of it): not shown */
+  dormant?: boolean;
   /** recently fired (shown brighter, like a UAV ping) */
   firing?: boolean;
   blinded?: boolean;
@@ -211,7 +213,7 @@ export class Minimap {
       c.arc(X(g.pos.x), Y(g.pos.z), 4, 0, Math.PI * 2);
       c.fill();
     }
-    for (const e of enemies) if (e.alive) arrow(X(e.position.x), Y(e.position.z), e.heading, 1, e.blinded ? "#f0d060" : "#ff3b2f");
+    for (const e of enemies) if (e.alive && !e.dormant) arrow(X(e.position.x), Y(e.position.z), e.heading, 1, e.blinded ? "#f0d060" : "#ff3b2f");
     for (const m of this.marks?.() ?? []) this.mark(c, X(m.pos.x), Y(m.pos.z), m.heading, m.color, m.label, !!m.big, 1, 0);
     for (const k of this.known?.() ?? []) {
       c.save();
@@ -352,7 +354,7 @@ export class Minimap {
 
     // enemies
     for (const e of enemies) {
-      if (!e.alive) continue;
+      if (!e.alive || e.dormant) continue;
       toR(e.position, pt);
       const d = Math.hypot(pt.x, pt.y);
       // clamp to the rim so off-radar hostiles still show their bearing

@@ -21,6 +21,43 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 
 ---
 
+## Glass fix and full screen (October 30)
+
+- **Glass broke when you shot a wall:** each window's collider was its bounding box. For a diagonal or L-shaped window (Black Ledger's lobby, 10 m on the slant), that box filled the room behind it, so a shot at the wall broke the window and the box blocked your way before it did. The collider is now the pane's own triangles, and shards fall from points on the glass itself (`level/Glass.ts`). Frostline's 131 straight panes still break when shot.
+- **Full screen on a computer:** a **FULL SCREEN** button in the main menu and the pause menu (in and out), and a setting, *FULL SCREEN WHILE PLAYING* (on by default), that goes full screen on deploy and resume as phones already did. ESC leaves full screen and pauses, as before; RESUME goes back in.
+
+## New stage: BLACK LEDGER (October 29)
+
+- **BLACK LEDGER** (renamed from Night Shift; `level/Office2.ts`, stage id `nightshift`, `?quick=nightshift`): "Cs_office with real light" by Neo_minigan (CC BY 4.0), the classic low-poly cs_office with its light baked into one atlas per section. It's a different model from Frostline's CS:GO remake, though it's the same building.
+  - **It plays like the other stages:** 16 soldiers (the operators and the S.W.A.T. operator) spread through the offices, patrolling or holding cover, none in sight of the insertion point. You start in the front lobby. The supply caches (all seven guns, ammo, rockets, grenades) stand against the room walls, the windows break, and the doors open. There's no scripted mission: clear the building ("CLEAR THE OFFICES"), and the round is won on the last soldier.
+  - **Built the Frostline way:** the model is drawn as-is, and collision, bullets, sight and the AI's paths come from `voxel-map.mjs --u=1.016 --mode=all --skip=glass` (3,860 m² of floor, 702 nav nodes, 7,077 boxes). `--skip=` is new: this export calls its windows `glass` (lower case), and the default skip list still covers the other maps unchanged.
+  - Assets: `scripts/assets/prep-office2.mjs` (textures → WebP: the map is 2.3 MB), `src/assets/maps/office2-data.json`, the menu card `thumbs/nightshift.webp` (the lobby through its window).
+- **Fix for stages without a mission:** they now show their own objective. Red Dune used to rely on the HUD's placeholder text.
+- **Black Ledger fixes (same day):** the export is the building alone, with no skybox, no player-clip walls and nothing outside.
+  - **Edges and windows:** voxelised with `--skip=glass --wall=glass --edges=void`.
+    - `--wall=<regex>` (new) counts the glass as solid when working out where you can walk, but gives it no collision (the game's breakable panes handle that). So the narrow walk outside the lobby and south windows, which you could only reach by climbing through a window, is out of play, and the windows onto it are closed for good, broken or not. Windows between rooms stay breakable and passable.
+    - `--edges=void` (new): a thin invisible slab only where the playable floor ends over nothing (no playable floor within 4 m out; 4 m so desks and counters don't count as drops), with posts at outside corners.
+    - Checked three ways. Walking every nav link with the glass broken: 9 of 2,973 blocked (0.3 %), by doors, a supply crate and a garage platform edge. Running and jumping at the edge from all 445 nav nodes near an invisible wall, windows broken: 1,335 runs, no falls, nobody more than 2.8 m from playable floor. Running and jumping at all 13 windows, broken: nobody got out.
+  - **Start:** moved from the walk outside the lobby windows to inside the lobby (the start must have a roof overhead).
+  - **Backdrop:** a winter sky, snow-covered ground and a ring of office blocks with lit windows (`buildBackdrop`), instead of white.
+  - **No falling loop, every stage:** a fall out of the level returns you to where you last stood, as before. If that drops you straight out again within 3 s, `PlayerController.rescueFloor` puts you on the nearest nav node instead, which is always real floor.
+  - `voxel-map.mjs` has two new opt-in options: `--skip=<regex>` and `--soft=<regex>`.
+
+## Two stages, a mixed garrison and a new carbine (October 28)
+
+- **Red Dune is gone.** The stage list is now Sandstorm (Dust 2), Frostline (the office), the Underground and the Heroes Playground; the game opens on the first. (`level/KestrelPoint.ts` keeps only the shared level types.)
+  - Sandstorm and Frostline were already built from the same two maps you sent (Neo_minigan's "real light" versions, with their baked light, collision and nav data), so they stay as they are.
+- **The S.W.A.T. operator** ("S.W.A.T. Operator" by Mateusz Woliński, CC BY 4.0) joins the garrison on Sandstorm and Frostline, in turn with the two operators. He's a real Mixamo rig with his own skin weights, so the mocap is retargeted onto him like the Underground's soldiers (`RIGS.swat`, `RETARGET.swat`). `scripts/assets/prep-swat.mjs` drops his own rifle, his two loose patches (meshes on no bone) and his idle clip, and turns his 45 maps into WebP (30 MB → 7.7 MB). He replaces the Counter-Strike T, which was a posed mesh with no rig and never moved well.
+  - `dev/soldierview.html?kinds=mark,fsb,swat` lines the characters up side by side under one animation input (`S.set({ speed, vz, aim, crouch, reload, aimZ })`), for checking a new soldier against the others.
+- **Throwing knives** (`fx/ThrowingKnives.ts`, `THROWING_KNIFE`), done the way Call of Duty does its lethal knife. You carry 3, on the grenade belt (**B** cycles to them).
+  - **Throw knife** (**P** or mouse side button) quick-throws from whatever you hold. Hold the key and the knife comes up blade-first in the throwing hand, ready; let go and it's thrown overhand. There's no pin, and the throw is quicker than a grenade's.
+  - It flies fast (31 m/s) and nearly flat with a little drop, end over end, swept every frame so it never passes through a thin wall.
+  - It goes in tip first and stays: in a wall or crate, or in a soldier. In a soldier it rides the bone it hit (his skin's nearest bone, not the hitbox, so it falls with him).
+  - It's silent. A hit kills an ordinary soldier anywhere on the body; the boss survives one in the body.
+  - Walk over a stuck knife, or the body it's in, and it's yours again. Grenade crates refill them.
+- **The tactical carbine** ("fps animated carbine" by DJMaesen, CC BY 4.0, `weapons/CarbineRig.ts`, `WEAPONS.carbine`) is a pickup: it lies on a crate with an ammo can beside it on every stage that has supply caches. Taking it (use key) swaps it for the rifle you carry; the M4 stays the starting rifle. Its one 7.4 s timeline is read in `CARBINE_CLIPS`: empty reload (mag out, in, bolt released), tactical reload (with the charging handle racked) and an inspect (**.** period). The rig supplies what the file has no clip for: the bolt cycling on every shot and staying back on an empty magazine. Butt-strike (**V** / middle mouse), walking, sprint, aim, crouch and landing come from the shared viewmodel.
+- **Radar fix:** soldiers a mission holds back for a later part of it (Sandstorm's west site and yard, the Underground's later halls) are no longer drawn on the radar and the full map until they're in play. Before, the map showed them at their posts while they were still waiting under the world, so you found nobody there.
+
 ## The air war, Whiteout, Superman's grab and jet takedown, tougher villains (October 20, round 6)
 
 - **New stage: WHITEOUT** (`level/Whiteout.ts`, stage id `whiteout`, `?quick=whiteout`).

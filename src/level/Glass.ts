@@ -1,6 +1,5 @@
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
-import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import { Ray } from "@babylonjs/core/Culling/ray";
@@ -31,6 +30,10 @@ interface Pane {
   visual: Mesh;
   collider: Mesh;
   broken: boolean;
+  /** the pane's middle (blasts) and its vertices (world): where the shards fall from */
+  center: Vector3;
+  pts: number[];
+  tris: number[];
 }
 
 /**
@@ -110,19 +113,24 @@ export class Glass {
 
   /** fling `n` shards from around `point` (pane centre / size used to spread them over the glass) */
   private spawnPieces(point: Vector3, dir: Vector3, pane: Pane, n: number) {
-    const bb = pane.collider.getBoundingInfo().boundingBox;
-    const ext = bb.extendSizeWorld;
+    const pts = pane.pts, tris = pane.tris;
+    const nt = tris.length / 3;
     for (let i = 0; i < n; i++) {
       const p = this.pieces[this.pieceIdx];
       this.pieceIdx = (this.pieceIdx + 1) % this.pieces.length;
       // most pieces burst out of the hole, the rest fall out of the whole frame
       const near = i < n * 0.6;
       const rx = (Math.random() - 0.5) * 2, ry = (Math.random() - 0.5) * 2, rz = (Math.random() - 0.5) * 2;
-      p.m.position.set(
-        (near ? point.x : bb.centerWorld.x) + rx * (near ? 0.25 : ext.x),
-        (near ? point.y : bb.centerWorld.y) + ry * (near ? 0.25 : ext.y),
-        (near ? point.z : bb.centerWorld.z) + rz * (near ? 0.25 : ext.z),
-      );
+      // (the rest fall out of the frame: from a random point on one of the glass's own triangles)
+      if (near) p.m.position.set(point.x + rx * 0.25, point.y + ry * 0.25, point.z + rz * 0.25);
+      else {
+        const t = Math.floor(Math.random() * nt) * 3;
+        const a = tris[t] * 3, b = tris[t + 1] * 3, c = tris[t + 2] * 3;
+        let u = Math.random(), v = Math.random();
+        if (u + v > 1) (u = 1 - u), (v = 1 - v);
+        const at = (k: number) => pts[a + k] + (pts[b + k] - pts[a + k]) * u + (pts[c + k] - pts[a + k]) * v;
+        p.m.position.set(at(0), at(1), at(2));
+      }
       const sp = near ? 1.5 + Math.random() * 3.5 : 0.2 + Math.random() * 1.0;
       p.vel.set(dir.x * sp + rx * 1.2, dir.y * sp + Math.random() * 1.4, dir.z * sp + rz * 1.2);
       p.spin.set(rx * 14, ry * 14, rz * 14);
@@ -278,15 +286,21 @@ export class Glass {
       visual.material = mat;
       visual.isPickable = false;
       visual.alphaIndex = 10;
-      // the collider: the pane's box, at least 8 cm thick so a bullet can't slip through
-      const collider = MeshBuilder.CreateBox(`glassCol${n}`, { width: Math.max(sx, 0.08), height: Math.max(sy, 0.08), depth: Math.max(sz, 0.08) }, this.scene);
-      collider.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      // the collider: the pane's own triangles, not its bounding box — a box round a diagonal or
+      // L-shaped window (Black Ledger's lobby) filled the room behind it: a shot at the wall broke the
+      // window, and the box stood in the way before it did. (A ray can't slip between triangles, and at
+      // a walk the body can't tunnel through them, so it needs no thickness.)
+      const collider = new Mesh(`glassCol${n}`, this.scene);
+      const cd = new VertexData();
+      cd.positions = p.slice();
+      cd.indices = ii.slice();
+      cd.applyToMesh(collider);
       collider.isVisible = false;
       collider.checkCollisions = true;
       collider.isPickable = true;
       collider.metadata = { kind: HitKind.Level, surface: "glass", glass: n };
       collider.computeWorldMatrix(true);
-      this.panes.push({ visual, collider, broken: false });
+      this.panes.push({ visual, collider, broken: false, center: new Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), pts: p, tris: ii });
       this.colliders.push(collider);
       n++;
     }
@@ -335,7 +349,7 @@ export class Glass {
   blast(pos: Vector3, radius: number) {
     for (const p of this.panes) {
       if (p.broken) continue;
-      if (Vector3.Distance(p.collider.position, pos) < radius * 0.8) this.hit(p.collider as never, p.collider.position.clone(), p.collider.position.subtract(pos).normalize());
+      if (Vector3.Distance(p.center, pos) < radius * 0.8) this.hit(p.collider as never, p.center.clone(), p.center.subtract(pos).normalize());
     }
   }
 

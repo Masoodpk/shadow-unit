@@ -39,6 +39,8 @@ export const TOUCH_LABELS: Partial<Record<Action, string>> = {
   grenadeType: "HOLD NADE",
   knife: "KNIFE",
   melee: "KNIFE",
+  inspect: "INSPECT",
+  throwKnife: "THROW KNIFE",
   map: "MAP",
 };
 

@@ -54,6 +54,9 @@ export class Weapon {
   autoThrow = false;
   /** last throw was an underhand lob */
   lob = false;
+  /** a throwing knife in the hand: no pin to pull, a quicker throw */
+  noPin = false;
+  throwRate = 1;
 
   constructor(
     readonly cfg: WeaponConfig,
@@ -248,7 +251,12 @@ export class Weapon {
       case "idle": {
         const fresh = this.lastPressHandled !== inp.pressId;
         const wants = this.autoThrow || (fresh && (inp.triggerPressed || inp.pressAge <= this.cfg.inputBuffer));
-        if (wants && this.mag > 0) {
+        if (wants && this.mag > 0 && this.noPin) {
+          // (a knife: straight up into the hand — held back, ready, while the button is down)
+          this.lastPressHandled = inp.pressId;
+          this.throwPhase = inp.triggerHeld ? "cooked" : "throw";
+          this.throwT = 0;
+        } else if (wants && this.mag > 0) {
           this.lastPressHandled = inp.pressId;
           this.throwPhase = "pin";
           this.throwT = 0;
@@ -273,7 +281,7 @@ export class Weapon {
       case "throw": {
         const prev = this.throwT;
         if (prev === 0) this.lob = !!inp.altHeld;
-        this.throwT += dt / GRENADE.throwTime;
+        this.throwT += (dt / GRENADE.throwTime) * this.throwRate;
         if (prev < GRENADE.releaseAt && this.throwT >= GRENADE.releaseAt) {
           shots = 1;
           this.mag--;

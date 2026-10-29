@@ -1,0 +1,35 @@
+// Dev-only: ?m=<glb url> — orbit camera, animation scrub via window.seek(seconds)
+import "../src/core/babylon";
+import "@babylonjs/loaders/glTF/glTFFileLoader";
+import "@babylonjs/loaders/glTF/2.0/glTFLoader";
+import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp";
+import { Engine } from "@babylonjs/core/Engines/engine";
+import { Scene } from "@babylonjs/core/scene";
+import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Color4 } from "@babylonjs/core/Maths/math.color";
+import { LoadAssetContainerAsync } from "@babylonjs/core/Loading/sceneLoader";
+import gunUrl from "../src/assets/weapons/carbine.glb?url";
+const q = new URLSearchParams(location.search);
+const engine = new Engine(document.getElementById("c") as HTMLCanvasElement, true, { preserveDrawingBuffer: true });
+const scene = new Scene(engine);
+scene.clearColor = new Color4(0.2, 0.2, 0.22, 1);
+new HemisphericLight("h", new Vector3(0.3, 1, 0.2), scene).intensity = 1.3;
+const c = await LoadAssetContainerAsync(q.get("m") ?? gunUrl, scene, { pluginExtension: ".glb" });
+c.addAllToScene();
+const root = c.meshes[0];
+root.computeWorldMatrix(true);
+const { min, max } = root.getHierarchyBoundingVectors(true);
+const ctr = min.add(max).scale(0.5);
+const r = max.subtract(min).length();
+const cam = new ArcRotateCamera("cam", parseFloat(q.get("a") ?? "-1.2"), parseFloat(q.get("b") ?? "1.2"), r * 0.9, ctr, scene);
+cam.minZ = r * 0.01; cam.maxZ = r * 10;
+const g = c.animationGroups[0];
+if (!g) { const { MeshBuilder } = await import("@babylonjs/core/Meshes/meshBuilder"); void MeshBuilder; }
+g?.start(false, 1, g.from, g.to); g?.pause();
+const yaw = parseFloat(q.get("a") ?? "1.5708");
+cam.alpha = yaw;
+(window as any).V = { scene, cam, g, root, c, seek: (t: number) => { g.goToFrame(g.from + t * (g.to - g.from) / 7.4); }, ctr, r };
+document.getElementById("info")!.textContent = `from ${g?.from} to ${g?.to}  size ${max.subtract(min).toString()}`;
+engine.runRenderLoop(() => scene.render());

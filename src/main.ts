@@ -5,7 +5,7 @@ import type { Game, GameState, RoundStats } from "./core/Game";
 import { ACTIONS, Action, RESERVED, bindings, codeLabel } from "./core/Bindings";
 import { STAGES, StageId, stageInfo } from "./config/stages";
 import { DIFFICULTY, DIFFICULTIES, Difficulty, difficulty } from "./config/difficulty";
-import redDuneThumb from "./assets/thumbs/red-dune.webp?url";
+import nightshiftThumb from "./assets/thumbs/nightshift.webp?url";
 import frostlineThumb from "./assets/thumbs/frostline.webp?url";
 import sandstormThumb from "./assets/thumbs/sandstorm.webp?url";
 import whiteoutThumb from "./assets/thumbs/whiteout.webp?url";
@@ -13,7 +13,7 @@ import metroThumb from "./assets/thumbs/metro.webp?url";
 import { TOUCH_LABELS, TouchControls, isTouchDevice } from "./ui/TouchControls";
 
 /** stage thumbnails: real renders of each stage */
-const THUMBS: Record<StageId, string> = { kestrel: redDuneThumb, office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, whiteout: whiteoutThumb };
+const THUMBS: Record<StageId, string> = { office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, nightshift: nightshiftThumb, whiteout: whiteoutThumb };
 
 /**
  * Boot flow (plain DOM, so it shows before the engine is parsed):
@@ -73,11 +73,15 @@ if (touch) {
   document.body.classList.add("touch");
   bindings.touchLabels = TOUCH_LABELS;
 }
-/** fullscreen + landscape lock (both need a tap behind them; iPhone Safari has neither — it just carries on) */
+/**
+ * Fullscreen (+ landscape lock on touch). Both need a click or tap behind them, so they're asked for on
+ * the clicks that start and resume play. A computer goes fullscreen too unless the setting is off;
+ * ESC leaves fullscreen (and pauses, as before) and RESUME goes back in. iPhone Safari has neither.
+ */
 function goFullscreen() {
-  if (!touch) return;
+  if (!touch && !(toggles?.fullscreen.value ?? true)) return;
   const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
-  const lock = () => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.("landscape").catch(() => undefined);
+  const lock = () => (touch ? (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.("landscape").catch(() => undefined) : undefined);
   try {
     if (document.fullscreenElement) void lock();
     else if (el.requestFullscreen) void el.requestFullscreen({ navigationUI: "hide" }).then(lock, () => undefined);
@@ -155,8 +159,8 @@ window.addEventListener("touchend", startMenuMusic, { once: true });
 let lockFallback = touch;
 /** pointer lock has succeeded at least once (so a later refusal is the browser's re-lock cooldown) */
 let lockWorked = false;
-const asStage = (v: string | null | undefined): StageId => (STAGES.some((s) => s.id === v) ? (v as StageId) : "kestrel");
-let stage: StageId = asStage(store.get("stage", "kestrel"));
+const asStage = (v: string | null | undefined): StageId => (STAGES.some((s) => s.id === v) ? (v as StageId) : STAGES[0].id);
+let stage: StageId = asStage(store.get("stage", STAGES[0].id));
 
 // ------------------------------------------------------------------ settings
 const num = (k: string, d: number) => {
@@ -230,6 +234,7 @@ const toggles = {
   devMode: { id: "set-dev", value: session.get("dev") === "1", invert: false, key: "dev" },
   aimToggle: { id: "set-aim", value: store.get("aimToggle", "1") === "1", invert: false, key: "aimToggle" },
   menuMusic: { id: "set-menumusic", value: store.get("menuMusic", "1") === "1", invert: false, key: "menuMusic" },
+  fullscreen: { id: "set-fullscreen", value: store.get("fullscreen", "1") === "1", invert: false, key: "fullscreen" },
 };
 type ToggleKey = keyof typeof toggles;
 function syncToggle(key: ToggleKey, v: boolean) {
@@ -271,7 +276,9 @@ for (const key of Object.keys(toggles) as ToggleKey[]) {
       menuMusic.apply();
     } else if (key === "menuMusic") menuMusic.apply();
     else if (key === "aimToggle") game?.setAimToggle(v);
-    else game?.setDevMode(v);
+    else if (key === "fullscreen") {
+      /* used on the next deploy / resume */
+    } else game?.setDevMode(v);
   });
 }
 $<HTMLInputElement>("ctl-dev").addEventListener("change", (e) => {
@@ -774,6 +781,26 @@ async function deploy() {
   }
   if (quick) installDevHelpers(g);
 }
+
+// the FULL SCREEN buttons (menu, pause): in and out, whatever the setting; their label follows
+function toggleFullscreen() {
+  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+  const d = document as Document & { webkitExitFullscreen?: () => void; webkitFullscreenElement?: Element };
+  try {
+    if (document.fullscreenElement || d.webkitFullscreenElement) void (document.exitFullscreen?.() ?? d.webkitExitFullscreen?.());
+    else if (el.requestFullscreen) void el.requestFullscreen({ navigationUI: "hide" }).catch(() => undefined);
+    else el.webkitRequestFullscreen?.();
+  } catch {
+    /* not allowed here */
+  }
+}
+const syncFsButtons = () => {
+  const on = !!document.fullscreenElement;
+  for (const b of document.querySelectorAll<HTMLButtonElement>(".fs-btn")) b.textContent = on ? "EXIT FULL SCREEN" : "FULL SCREEN";
+};
+for (const id of ["btn-fullscreen", "btn-fullscreen-p"]) $(id).addEventListener("click", toggleFullscreen);
+document.addEventListener("fullscreenchange", syncFsButtons);
+syncFsButtons();
 
 $("btn-deploy").addEventListener("click", () => {
   goFullscreen();

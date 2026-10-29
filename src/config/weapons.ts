@@ -3,7 +3,7 @@
  * player or the weapon state machine — tune feel here.
  */
 
-export type WeaponId = "rifle" | "ak47" | "m5" | "vssk" | "glock" | "vector" | "flashbang" | "knife" | "m72" | "dzj08";
+export type WeaponId = "carbine" | "rifle" | "ak47" | "m5" | "vssk" | "glock" | "vector" | "flashbang" | "knife" | "m72" | "dzj08";
 /**
  * auto = hold to fire; semi = one shot per click; pump = one shot per click + pump cycle;
  * throw = grenade (press = pin, release = throw); melee = knife (click = slash, aim button = heavy stab).
@@ -295,9 +295,87 @@ function launcherReload(duration: number): ReloadPhase[] {
   ];
 }
 
+/**
+ * "FPS animated carbine" viewmodel (DJMaesen): every action lives on one 7.4 s timeline, read off the
+ * bolt, magazine and arm curves. Seconds. There is no fire clip: the shot is the rig's own recoil
+ * and bolt cycle (CarbineRig), the butt-stroke is the shared melee swing.
+ */
+export const CARBINE_CLIPS = {
+  /** bolt locked back, mag out (1.0 s), new mag in (1.5 s), bolt released (1.85 s) */
+  reloadEmpty: [0.4, 2.4] as [number, number],
+  reloadEmptyMagOut: 0.85,
+  reloadEmptySeat: 1.5,
+  reloadEmptyBolt: 1.85,
+  /** mag out (2.8 s), mag in (3.45 s), charging handle racked (3.8-4.2 s) */
+  reload: [2.4, 4.4] as [number, number],
+  reloadMagOut: 2.85,
+  reloadSeat: 3.45,
+  reloadRack: 3.9,
+  /** checking the weapon: the handle pulled and let go */
+  inspect: [4.4, 6.0] as [number, number],
+  /** the hold pose */
+  idle: 6.0,
+};
+
+function carbineReload(speed: number): ReloadPhase[] {
+  const C = CARBINE_CLIPS;
+  const r = clipPhase("reload", C.reload, speed, {
+    onlyIfNotEmpty: true,
+    cancelAt: 3.9,
+    events: [
+      { at: 2.55, type: "sound", sound: "foley" },
+      { at: C.reloadMagOut, type: "sound", sound: "m4MagOut" },
+      { at: C.reloadSeat, type: "sound", sound: "m4MagIn" },
+      { at: C.reloadSeat, type: "transferMag" },
+      { at: C.reloadRack, type: "sound", sound: "m4Bolt" },
+    ],
+  });
+  const e = clipPhase("reloadEmpty", C.reloadEmpty, speed, {
+    onlyIfEmpty: true,
+    cancelAt: 2.0,
+    events: [
+      { at: 0.55, type: "sound", sound: "foley" },
+      { at: C.reloadEmptyMagOut, type: "sound", sound: "m4MagOut" },
+      { at: C.reloadEmptySeat, type: "sound", sound: "m4MagIn" },
+      { at: C.reloadEmptySeat, type: "transferMag" },
+      { at: C.reloadEmptyBolt, type: "sound", sound: "m4Bolt" },
+    ],
+  });
+  return [r, e];
+}
+
 const NO_RECOIL: RecoilConfig = { pitch: 0, pitchJitter: 0, yaw: 0, yawBias: 0, recovery: 10, recoveryFraction: 1, kickBack: 0, kickRot: 0, adsScale: 1 };
 
 export const WEAPONS: Record<WeaponId, WeaponConfig> = {
+  carbine: {
+    id: "carbine",
+    slot: 0,
+    displayName: "TACTICAL CARBINE",
+    fireMode: "auto",
+    rpm: 750,
+    magSize: 30,
+    reserveStart: 240,
+    reserveMax: 360,
+    damage: { base: 27, pellets: 1, headMultiplier: 2.6, limbMultiplier: 0.75, falloffStart: 35, falloffEnd: 90, minDamageScale: 0.6, range: 180 },
+    spread: { hip: 1.5, ads: 0.1, moving: 1.4, air: 3.5, crouchScale: 0.75, perShot: 0.2, maxBloom: 2.2, bloomRecovery: 6 },
+    recoil: { pitch: 0.6, pitchJitter: 0.14, yaw: 0.28, yawBias: 0.12, recovery: 9, recoveryFraction: 0.7, kickBack: 0.014, kickRot: 0.02, adsScale: 0.62 },
+    cycleTime: 0,
+    equipTime: 0.7,
+    holsterTime: 0.32,
+    adsTime: 0.16,
+    adsFovScale: 0.8,
+    adsSensitivity: 0.9,
+    moveSpeedScale: 1.0,
+    adsMoveScale: 0.64,
+    sway: { amount: 1.0, adsScale: 0.18, smoothing: 14 },
+    muzzleFlash: { scale: 0.17, length: 0.3, duration: 0.045, tint: [1.0, 0.8, 0.5] },
+    sounds: { fire: "m4Shot", dry: "dryFire", tail: "rifleTail" },
+    ejectOn: "fire",
+    tracerEvery: 3,
+    inputBuffer: 0.0,
+    reload: carbineReload(1.05),
+  },
+
   rifle: {
     id: "rifle",
     slot: 0,
@@ -627,7 +705,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
   },
 };
 
-export type GrenadeType = "frag" | "flame" | "plasma" | "flash";
+export type GrenadeType = "frag" | "flame" | "plasma" | "flash" | "knife";
 
 export interface GrenadeSpec {
   name: string;
@@ -646,6 +724,8 @@ export interface GrenadeSpec {
   damage: number;
   /** throw speed multiplier (heavier canisters fly shorter) */
   speed: number;
+  /** a throwing knife: no pin, no fuse — flies flat and sticks (THROWING_KNIFE) */
+  knife?: boolean;
 }
 
 /** The grenade belt: lethal AP frag, incendiary, plasma, and the tactical flashbang. */
@@ -654,8 +734,36 @@ export const GRENADE_TYPES: Record<GrenadeType, GrenadeSpec> = {
   flame: { name: "INCENDIARY", short: "FIRE", count: 2, fuse: 3.5, impact: true, radius: 3.8, damage: 34, speed: 0.92 },
   plasma: { name: "PLASMA", short: "PLSM", count: 1, fuse: 1.15, sticky: true, radius: 6.5, damage: 260, speed: 0.95 },
   flash: { name: "M84 FLASHBANG", short: "FLASH", count: 2, fuse: 1.6, radius: 22, damage: 0, speed: 1 },
+  knife: { name: "THROWING KNIFE", short: "KNIFE", count: 3, fuse: 0, radius: 0, damage: 0, speed: 1, knife: true },
 };
-export const GRENADE_ORDER: GrenadeType[] = ["frag", "flame", "plasma", "flash"];
+export const GRENADE_ORDER: GrenadeType[] = ["frag", "flame", "plasma", "flash", "knife"];
+
+/**
+ * Throwing knives (fx/ThrowingKnives): thrown overhand with no pin — hold the key and it's raised,
+ * ready; let go and it flies. Fast and nearly flat, spinning end over end, into whatever it meets.
+ */
+export const THROWING_KNIFE = {
+  /** m/s, plus a little lift so the arc carries it to the crosshair at mid range */
+  speed: 31,
+  lift: 0.9,
+  /** less than a stone's 9.8: it carries */
+  gravity: 6,
+  /** turns a second */
+  spin: 3.2,
+  /** a soldier anywhere (100 hp; 125 on hard) — the boss survives one in the body */
+  damage: 150,
+  headDamage: 400,
+  /** model scale (the combat knife's 42 cm → 31 cm), grip-to-tip length (m), how deep it goes in */
+  scale: 0.0075,
+  tipLength: 0.26,
+  embed: 0.05,
+  /** walked over: taken back (m) */
+  pickupRange: 1.6,
+  /** seconds in the air before it's gone (thrown at the sky) */
+  life: 4,
+  /** the throw plays this much faster than a grenade's */
+  throwRate: 1.35,
+};
 
 /** Grenade timing (seconds). */
 export const GRENADE = {
@@ -696,5 +804,5 @@ export function slotOf(cfg: WeaponConfig): LoadoutSlot {
   return "primary";
 }
 
-export const WEAPON_ORDER: WeaponId[] = ["rifle", "ak47", "m5", "vssk", "glock", "vector", "flashbang", "knife", "m72", "dzj08"];
+export const WEAPON_ORDER: WeaponId[] = ["rifle", "ak47", "m5", "vssk", "glock", "vector", "flashbang", "knife", "m72", "dzj08", "carbine"];
 WEAPON_ORDER.forEach((id, i) => (WEAPONS[id].slot = i));

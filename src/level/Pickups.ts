@@ -37,7 +37,7 @@ export interface Pickup {
 }
 
 /** real overall lengths (m) the world models are scaled to */
-const LENGTH: Partial<Record<WeaponId, number>> = { rifle: 0.84, ak47: 0.88, m5: 0.74, vssk: 1.0, glock: 0.19, vector: 0.62, m72: 0.88, dzj08: 1.0 };
+const LENGTH: Partial<Record<WeaponId, number>> = { carbine: 0.9, rifle: 0.84, ak47: 0.88, m5: 0.74, vssk: 1.0, glock: 0.19, vector: 0.62, m72: 0.88, dzj08: 1.0 };
 
 /**
  * Things lying around the stage to pick up, like any shooter: guns (on a crate, or dropped by a dead
@@ -361,6 +361,8 @@ export class Pickups {
     const rnd = mulberry32(seed);
     const caches: ({ kind: "weapon"; id: WeaponId } | { kind: Exclude<PickupKind, "weapon">; look?: string })[][] = [
       [{ kind: "ammo" }, { kind: "ammo", look: "pack" }],
+      // (the carbine: taken with the use key, it swaps for the rifle you carry)
+      [{ kind: "weapon", id: "carbine" }, { kind: "ammo" }],
       [{ kind: "weapon", id: "ak47" }, { kind: "ammo" }],
       [{ kind: "weapon", id: "m72" }, { kind: "rockets" }],
       [{ kind: "weapon", id: "vector" }, { kind: "grenades" }],

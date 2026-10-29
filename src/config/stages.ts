@@ -1,5 +1,5 @@
 /** Playable stages. The menu lists them; the game builds the chosen one at load. */
-export type StageId = "kestrel" | "office" | "dust2" | "metro" | "whiteout";
+export type StageId = "office" | "dust2" | "metro" | "nightshift" | "whiteout";
 
 export interface StageInfo {
   id: StageId;
@@ -21,18 +21,6 @@ export interface StageInfo {
 
 /** in play order (NEXT STAGE follows it); the Heroes Playground always comes last */
 export const STAGES: StageInfo[] = [
-  {
-    id: "kestrel",
-    name: "RED DUNE",
-    kicker: "OPERATION // RED DUNE",
-    location: "Desert coast supply depot, last light",
-    description: "Lab block, a sprawling container yard, army trucks and a warehouse on the dunes above the sea. A straight fight against a well-dug-in garrison.",
-    objective: "CLEAR RED DUNE",
-    tag: "15 HOSTILES · DESERT DEPOT",
-    ambience: "coast",
-    lit: true,
-    snow: false,
-  },
   {
     id: "dust2",
     name: "SANDSTORM",
@@ -67,6 +55,18 @@ export const STAGES: StageInfo[] = [
     tag: "MISSION · ELIMINATE THE LEAK",
     ambience: "none",
     lit: true,
+    snow: false,
+  },
+  {
+    id: "nightshift",
+    name: "BLACK LEDGER",
+    kicker: "OPERATION // BLACK LEDGER",
+    location: "Corporate offices, after hours",
+    description: "Every gun the cell buys is paid for from one office block: front companies, offshore books, a server room full of names. Its paymasters are dug in among the cubicles with a garrison to guard them. Go in through the lobby and clear the building, floor by floor.",
+    objective: "CLEAR THE OFFICES",
+    tag: "16 HOSTILES · OFFICE BLOCK",
+    ambience: "none",
+    lit: false,
     snow: false,
   },
   {

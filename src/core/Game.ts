@@ -12,7 +12,7 @@ import { AudioEngine } from "../audio/AudioEngine";
 import { ENEMY, PLAYER, RENDER } from "../config/game";
 import { EnemyManager } from "../enemies/EnemyManager";
 import { Effects } from "../fx/Effects";
-import { LevelData, buildKestrelPoint } from "../level/KestrelPoint";
+import { LevelData } from "../level/KestrelPoint";
 import { buildWhiteout, plantWhiteoutTrees } from "../level/Whiteout";
 import { Snowfall } from "../fx/Snowfall";
 import { buildOffice } from "../level/Office";
@@ -60,6 +60,9 @@ import { WeaponManager } from "../weapons/WeaponManager";
 import { SLOT_LABEL, SLOT_ORDER, WEAPONS, slotOf } from "../config/weapons";
 import { buildArmsRig, loadArmsTemplate, loadGunContainer } from "../weapons/ArmsRig";
 import { buildVectorRig, loadVectorContainer } from "../weapons/VectorRig";
+import { ThrowingKnives, makeKnifeTemplate } from "../fx/ThrowingKnives";
+import { buildOffice2 } from "../level/Office2";
+import { buildCarbineRig, loadCarbineContainer } from "../weapons/CarbineRig";
 import { buildGrenadeRig, loadFlashbangContainer } from "../weapons/GrenadeRig";
 import { buildKnifeRigFP, loadKnifeFPContainer } from "../weapons/KnifeRigFP";
 import { RocketBlast, Rockets } from "../fx/Rockets";
@@ -966,6 +969,7 @@ export class Game {
   skins?: SoldierSkins;
   private minimap!: Minimap;
   private nadeTpls!: Record<GrenadeType, Mesh>;
+  private knives!: ThrowingKnives;
   private explosions!: Explosions;
   private rockets!: Rockets;
   private glass?: Glass;
@@ -1088,7 +1092,7 @@ export class Game {
     this.env = new Environment(scene);
     this.env.build(low);
     // (Red Dune runs from the sea to the arena: the shadows follow you rather than cover it all thinly)
-    if (this.heroStage || this.settings.stage === "kestrel") {
+    if (this.heroStage) {
       this.env.shadowFollow = true;
       if (this.settings.stage === "whiteout") {
         // Whiteout: a cold bright afternoon, and snow coming down
@@ -1100,7 +1104,7 @@ export class Game {
 
     // soldier characters download while the level and weapons are built
     // (the Underground's soldiers are its own: the Polish soldier, the soldier girl, the Winter Soldier)
-    const skinsP = this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : SoldierSkins.load(scene);
+    const skinsP = this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
     const hostageP = this.settings.stage === "dust2" ? HostageModel.load(scene) : null;
     const stationP = this.settings.stage === "office" ? StationModel.load(scene) : null;
     const hulkP = this.heroStage ? HulkModel.load(scene) : null;
@@ -1143,13 +1147,13 @@ export class Game {
     this.level =
       info.id === "office"
         ? await buildOffice(scene, this.env, loadBar)
+        : info.id === "nightshift"
+          ? await buildOffice2(scene, this.env, loadBar)
         : info.id === "dust2"
           ? await buildDust2(scene, this.env, this.mats, low, loadBar)
           : info.id === "metro"
             ? await buildMetro(scene, this.env, this.mats, low, loadBar)
-          : info.id === "whiteout"
-            ? buildWhiteout(scene, this.mats, this.env)
-            : buildKestrelPoint(scene, this.mats, this.env);
+          : buildWhiteout(scene, this.mats, this.env);
     if (info.id === "whiteout") await plantWhiteoutTrees(scene).catch((e) => console.warn("pines failed to load", e));
     await tick();
     // authored set dressing (containers, trucks)
@@ -1225,6 +1229,16 @@ export class Game {
     this.player.userSensitivity = this.settings.sensitivity;
     this.player.baseFov = this.settings.fov ?? PLAYER.baseFovDeg;
     if (this.level.floorRange) this.player.killY = this.level.floorRange[0] - 4;
+    // (fallen out of the level: back on the nav node nearest where he last stood — always real floor)
+    this.player.rescueFloor = (from) => {
+      let best: Vector3 | null = null, bd = Infinity;
+      for (const n of this.level.nav.nodes) {
+        if (n.links.length < 2) continue;
+        const d = Vector3.DistanceSquared(n.p, from);
+        if (d < bd) (bd = d), (best = n.p);
+      }
+      return best;
+    };
     this.fx = new Effects(scene, this.mats, this.audio, info.lit);
     this.hud = new Hud(SLOT_ORDER.map((s, i) => ({ label: String(i + 1), grenade: s === "grenade", title: SLOT_LABEL[s] })));
     this.weapons = new WeaponManager(scene, this.input, this.player, this.fx, this.audio, this.mats, {
@@ -1234,7 +1248,7 @@ export class Game {
       },
       onShot: (origin, noise) => this.enemies.onPlayerShot(origin, noise),
       onNoAmmo: () => this.hud.setPrompt("NO RESERVE AMMO", true),
-      onThrow: (type, origin, vel) => this.grenades.throw(type, origin, vel),
+      onThrow: (type, origin, vel) => (type === "knife" ? this.knives.throw(origin, vel) : this.grenades.throw(type, origin, vel)),
       onNoGrenades: () => this.hud.flashPrompt("NO GRENADES"),
       onRocket: (origin, dir, cfg) => this.rockets.fire(origin, dir, cfg),
       onGlass: (mesh, point, dir) => !!this.glass?.hit(mesh as never, point, dir),
@@ -1248,6 +1262,20 @@ export class Game {
     this.pickups = new Pickups(scene, rigs);
     this.grenades = new Grenades(scene, this.nadeTpls, this.mats, this.fx, this.audio);
     this.grenades.onDetonate = (d) => this.onDetonate(d);
+    this.knives = new ThrowingKnives(scene, this.nadeTpls.knife, this.fx, this.audio);
+    this.knives.onHit = (head, killed) => {
+      this.hud.hit(head ? "head" : "body", killed);
+      this.audio.play(head ? "hitHead" : "hitMarker", { volume: head ? 0.45 : 0.32, pitchVar: 0.02 });
+    };
+    // walked over: back on the belt, while there's room
+    this.knives.onTake = () => {
+      const inv = this.weapons.inventory;
+      if (inv.knife >= GRENADE_TYPES.knife.count) return false;
+      inv.knife++;
+      this.weapons.syncBelt();
+      this.hud.flashPrompt("+1 THROWING KNIFE");
+      return true;
+    };
     if (this.level.floorRange) this.grenades.killY = this.level.floorRange[0] - 5;
     this.grenades.onGlass = (mesh, point, dir) => !!this.glass?.hit(mesh as never, point, dir);
     this.explosions = new Explosions(scene, this.mats);
@@ -1808,21 +1836,26 @@ export class Game {
   /** Arms template + every glTF gun (+ the Vector's own viewmodel and the flashbang), downloaded in parallel. */
   private async loadWeaponRigs(progress: (p: number) => void) {
     const ids = Object.keys(GUNS) as WeaponId[];
-    const parts = new Array(ids.length + 5).fill(0);
+    const parts = new Array(ids.length + 6).fill(0);
     const report = () => progress(parts.reduce((a, b) => a + b, 0) / parts.length);
     const n = ids.length;
-    const [tpl, vecC, flashC, lethal, knifeC, ...gunContainers] = await Promise.all([
+    const [tpl, vecC, flashC, lethal, knifeC, carbC, ...gunContainers] = await Promise.all([
       loadArmsTemplate(this.scene, (p) => ((parts[0] = p), report())),
       loadVectorContainer(this.scene, (p) => ((parts[n + 1] = p), report())),
       loadFlashbangContainer(this.scene, (p) => ((parts[n + 2] = p), report())),
       loadGrenadeSet(this.scene, (p) => ((parts[n + 3] = p), report())),
       loadKnifeFPContainer(this.scene, (p) => ((parts[n + 4] = p), report())),
+      loadCarbineContainer(this.scene, (p) => ((parts[n + 5] = p), report())),
       ...ids.map((id, i) => loadGunContainer(this.scene, GUNS[id]!, (p) => ((parts[i + 1] = p), report()))),
     ]);
     const rigs: Partial<Record<WeaponId, WeaponRig>> = { rifle: buildArmsRig(this.scene, tpl, "rifle", null, null) };
     ids.forEach((id, i) => (rigs[id] = buildArmsRig(this.scene, tpl, id, GUNS[id]!, gunContainers[i])));
     rigs.vector = buildVectorRig(this.scene, vecC);
-    const g = buildGrenadeRig(this.scene, tpl, flashC, lethal);
+    rigs.carbine = buildCarbineRig(this.scene, carbC);
+    // (the throwing knife: the combat knife's blade, off its first-person file — before that rig takes it)
+    const blade = knifeC.meshes.find((m) => m.name.startsWith("knife_knife")) as Mesh;
+    const knifeTpl = makeKnifeTemplate(blade);
+    const g = buildGrenadeRig(this.scene, tpl, flashC, lethal, knifeTpl);
     rigs.flashbang = g.rig;
     rigs.knife = buildKnifeRigFP(this.scene, knifeC);
     this.nadeTpls = g.parts.projectiles;
@@ -1955,7 +1988,7 @@ export class Game {
       return;
     }
     // frag / plasma: the big ones
-    this.blast(pos, normal, spec.radius, spec.damage, type, det.stuckTo);
+    this.blast(pos, normal, spec.radius, spec.damage, type as "frag" | "plasma", det.stuckTo);
   }
 
   private onFlashbang(at: Vector3) {
@@ -2008,6 +2041,7 @@ export class Game {
     }
     this.fx.reset();
     this.grenades.reset();
+    this.knives.reset();
     this.explosions.reset();
     this.rockets.reset();
     this.prints?.reset();
@@ -2050,7 +2084,8 @@ export class Game {
     this.smDue = -1;
     for (const h of this.squad) h.reset();
     for (const v of this.villains) v.reset();
-    if (this.heroStage) {
+    // (the Playground, and a stage with no scripted mission — clear it: the objective is the stage's own)
+    if (this.heroStage || !this.mission) {
       const o = document.getElementById("obj-text");
       if (o) o.textContent = stageInfo(this.settings.stage).objective;
     }
@@ -2254,6 +2289,7 @@ export class Game {
     this.mats.update(dt);
     if (this.state !== "paused") {
       this.grenades.update(dt);
+      this.knives.update(dt, this.player.feet);
       this.rockets.update(dt);
       this.doors?.update(dt);
       this.glass?.update(dt);
@@ -2262,7 +2298,7 @@ export class Game {
       this.updateFires(dt);
     }
     this.expoKick = Math.max(0, this.expoKick - dt * 4.5);
-    this.scene.imageProcessingConfiguration.exposure = (this.settings.stage === "whiteout" ? 0.92 : this.settings.stage === "kestrel" ? 1.22 : 1.05) + this.expoKick;
+    this.scene.imageProcessingConfiguration.exposure = (this.settings.stage === "whiteout" ? 0.92 : 1.05) + this.expoKick;
     this.snowfall?.update(dt);
 
     const playing = this.state === "playing" || this.state === "dead" || this.state === "won";
@@ -2659,7 +2695,7 @@ export class Game {
     else hud.setAmmo(w.mag, w.isGrenade ? -1 : w.reserve, w.isGrenade ? GRENADE_TYPES[this.weapons.nadeType].count : w.cfg.magSize, w.cfg.fireMode === "pump" || w.isGrenade || !!w.cfg.projectile);
     const ads = this.weapons.adsT;
     const sprint = this.weapons.sprintT;
-    const hide = Math.max(ads * (w.cfg.id === "rifle" ? 1 : 0.7), sprint, w.state === "reloading" ? 0.6 : 0, 1 - w.raised);
+    const hide = Math.max(ads * (w.cfg.id === "rifle" || w.cfg.id === "carbine" ? 1 : 0.7), sprint, w.state === "reloading" ? 0.6 : 0, 1 - w.raised);
     hud.setCrosshair(this.weapons.currentSpread, this.player.fovDeg, this.player.alive ? 1 - Math.min(1, hide) : 0);
     // magnified optic: hide the viewmodel and show the scope overlay at full aim
     const scoped = !!w.cfg.scoped && ads > 0.9 && this.player.alive;
@@ -2669,6 +2705,7 @@ export class Game {
     if (!this.player.alive) hud.setPrompt("");
     else if (this.grenades.enemyGrenadeNear(this.player.feet, 8)) hud.setPrompt("⚠ GRENADE — MOVE!", true);
     else if (this.mission?.prompt) hud.setPrompt(this.mission.prompt);
+    else if (w.isGrenade && GRENADE_TYPES[this.weapons.nadeType].knife) hud.setPrompt(w.throwPhase === "cooked" ? "RELEASE TO THROW" : w.throwPhase === "idle" && w.state === "ready" ? `<b>${bindings.label("fire")}</b> THROW · HOLD TO READY` : "");
     else if (w.isGrenade) hud.setPrompt(w.throwPhase === "cooked" ? `RELEASE TO THROW · <b>${bindings.label("aim")}</b> UNDERHAND` : w.throwPhase === "idle" && w.state === "ready" ? `<b>${bindings.label("fire")}</b> PULL PIN & THROW` : "");
     else if (this.lookPickup) hud.setPrompt(this.pickupPrompt(this.lookPickup));
     else if (this.lookDoor) hud.setPrompt(`<b>${bindings.label("use")}</b>${Math.abs(this.lookDoor.target) > 0.1 ? "CLOSE DOOR" : "OPEN DOOR"}`);

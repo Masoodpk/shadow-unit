@@ -21,16 +21,25 @@ const doc = await io.read(input);
 
 // glass is skipped: the game splits it into breakable panes with their own colliders
 const SKIP = [/SNOW1/, /TRANS6/, /BACK1/, /BACK2/, /_WIRE_/, /decals/, /GLASS/];
+// --skip=<regex>: more node names to leave out (another export's glass: "glass", lower case)
+if (args.skip) SKIP.push(new RegExp(args.skip));
 // see-through / thin things (foliage, fences): block movement but not bullets or sight
 const SOFT = [/TRANS\d/];
-const tris = { solid: [], soft: [] };
+// --soft=<regex>: more node names that block movement only (windows a player could climb out of:
+// the panes stay shootable and breakable, the opening doesn't become a way out of the map)
+if (args.soft) SOFT.push(new RegExp(args.soft));
+// --wall=<regex>: node names that count as solid for working out where you can walk, but give no
+// collision (the game has its own for them — breakable glass): a place reached only through a window
+// isn't playable, and the window gets a clip wall that stays when the pane is broken
+const WALL = args.wall ? new RegExp(args.wall) : null;
+const tris = { solid: [], soft: [], wall: [] };
 const xf = (m, x, y, z) => [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]];
 for (const node of doc.getRoot().listNodes()) {
   const mesh = node.getMesh();
   if (!mesh) continue;
   const name = node.getName();
-  if (SKIP.some((r) => r.test(name))) continue;
-  const cls = SOFT.some((r) => r.test(name)) ? "soft" : "solid";
+  const cls = WALL && WALL.test(name) ? "wall" : SKIP.some((r) => r.test(name)) ? null : SOFT.some((r) => r.test(name)) ? "soft" : "solid";
+  if (!cls) continue;
   const m = node.getWorldMatrix();
   for (const prim of mesh.listPrimitives()) {
     const pos = prim.getAttribute("POSITION");
@@ -107,8 +116,10 @@ function raster(list, bits) {
 }
 const solid = mk();
 const soft = mk();
+const wallG = mk();
 console.log("solid samples", raster(tris.solid, solid));
 console.log("soft samples", raster(tris.soft, soft));
+if (WALL) console.log("wall-only samples", raster(tris.wall, wallG));
 
 // ------------------------------------------------------------------ greedy box merge
 function greedy(bits, R) {
@@ -142,7 +153,9 @@ function greedy(bits, R) {
 const C = 4; // voxels per nav cell
 const CX = Math.floor(NX / C), CZ = Math.floor(NZ / C);
 const HEAD = Math.ceil(1.75 / VS); // standing head room
-const occ = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < NX && y < NY && z < NZ && (get(solid, idx3(x, y, z)) || get(soft, idx3(x, y, z)));
+const occ = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < NX && y < NY && z < NZ && (get(solid, idx3(x, y, z)) || get(soft, idx3(x, y, z)) || get(wallG, idx3(x, y, z)));
+// (collision proper: what the game will collide with — not the --wall geometry)
+const occSolid = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < NX && y < NY && z < NZ && (get(solid, idx3(x, y, z)) || get(soft, idx3(x, y, z)));
 // floors[cell] = list of floor voxel tops (y index of the first empty voxel above a filled one, with head room)
 const floors = new Map();
 for (let cz = 0; cz < CZ; cz++)
@@ -320,6 +333,26 @@ if (args.probe) {
   }
 }
 console.log("reachable cells", reach.size, "≈", (reach.size * 0.25).toFixed(0), "m²");
+// --report-cut: walkable floor left out of play, in big pieces (a room nobody can get into?)
+if (args["report-cut"]) {
+  const seen = new Set(reach.keys());
+  let rx0 = Infinity, rx1 = -Infinity, rz0 = Infinity, rz1 = -Infinity, ry0 = Infinity, ry1 = -Infinity;
+  for (const [cx, cz, y] of reach.values()) (rx0 = Math.min(rx0, cx)), (rx1 = Math.max(rx1, cx)), (rz0 = Math.min(rz0, cz)), (rz1 = Math.max(rz1, cz)), (ry0 = Math.min(ry0, y)), (ry1 = Math.max(ry1, y));
+  const cut = [];
+  for (const [cell, list] of floors)
+    for (const y of list) {
+      const cx = cell % CX, cz = Math.floor(cell / CX);
+      if (seen.has(key(cx, cz, y)) || cx < rx0 || cx > rx1 || cz < rz0 || cz > rz1 || y < ry0 - 4 || y > ry1 + 4) continue;
+      const comp = fill([cx, cz, y], new Map());
+      for (const k of comp.keys()) seen.add(k);
+      if (comp.size < 40) continue;
+      let sx = 0, sy = 0, sz = 0;
+      for (const [a, b, c] of comp.values()) (sx += a), (sy += c), (sz += b);
+      const n = comp.size;
+      cut.push(`${(n * 0.25).toFixed(0)} m² at (${(min[0] + (sx / n * C + 2) * VS).toFixed(1)}, ${(min[1] + (sy / n) * VS).toFixed(1)}, ${(min[2] + (sz / n * C + 2) * VS).toFixed(1)})`);
+    }
+  console.log("cut off:", cut.length ? cut.join("  ") : "nothing");
+}
 
 const wx = (cx) => min[0] + (cx * C + 2 + 0.5) * VS;
 const wz = (cz) => min[2] + (cz * C + 2 + 0.5) * VS;
@@ -418,10 +451,49 @@ console.log("boxes solid", solidBoxes.length, "soft", softBoxes.length);
 
 // clip walls: where the playable floor ends but walkable ground carries on, an invisible wall
 const clipCells = [];
+// --edges=void: a wall only where the playable floor ends over nothing — no reachable floor at any height
+// in the next 4 m out (a facade, a window over the void, a ledge on an export with no world around it).
+// Stairs, drops to a lower floor and windows between rooms stay open (--edges=1 walls every drop).
+const reachCols = new Set();
+for (const [cx, cz] of reach.values()) reachCols.add(cz * CX + cx);
+const voidMode = args.edges === "void";
+const wallCell = (nx, nz, y) => {
+  if (nx < 0 || nz < 0 || nx >= CX || nz >= CZ) return false;
+  const chest = y + Math.round(1.2 / VS), head = y + Math.round(1.7 / VS);
+  for (let sz = 0; sz < C; sz++)
+    for (let sx = 0; sx < C; sx++) {
+      const x = nx * C + sx, z = nz * C + sz;
+      if (occSolid(x, chest, z) && occSolid(x, head, z)) return true;
+    }
+  return false;
+};
+const overVoid = (cx, cz, dx, dz) => {
+  // (4 m: further than a desk or a counter is wide — their tops are floors nobody stands on, and 2 m out
+  // from beside a big table found no playable floor and walled the table in)
+  for (let k = 1; k <= Math.round(4 / 0.5); k++) {
+    const x = cx + dx * k, z = cz + dz * k;
+    if (x < 0 || z < 0 || x >= CX || z >= CZ) return true;
+    if (reachCols.has(z * CX + x)) return false;
+  }
+  return true;
+};
 for (const [cx, cz, y] of reach.values()) {
   for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const nx = cx + dx, nz = cz + dz;
     const list = floors.get(nz * CX + nx);
+    if (voidMode) {
+      const nearR = list?.find((ny) => Math.abs(ny - y) <= 4);
+      if (nearR !== undefined && reach.has(key(nx, nz, nearR))) continue;
+      // (no "a real wall stands there" skip: the slab sits at the cell's far side, so a wall-cell slab
+      // is behind the wall's face and narrows nothing — and a window's frame posts made a skip open the
+      // window: a diagonal lobby window let you climb out on to the walk outside)
+      // (a thin slab at the cell's far side, not the whole cell: a narrow walk keeps its width — you can
+      // stand right at the edge, just not step off it)
+      if (overVoid(cx, cz, dx, dz)) clipCells.push([nx, nz, y, dx, dz]);
+      // (walkable ground carrying on that isn't playable: the usual clip)
+      else if (nearR !== undefined && !reach.has(key(nx, nz, nearR))) clipCells.push([nx, nz, nearR]);
+      continue;
+    }
     // (--edges: where the floor just stops — a drop into nothing, the crop's edge — a wall too)
     if (!list) {
       if (args.edges) clipCells.push([nx, nz, y]);
@@ -438,7 +510,23 @@ for (const [cx, cz, y] of reach.values()) {
     clipCells.push([nx, nz, near]);
   }
 }
-const clipBoxes = clipCells.map(([cx, cz, y]) => [cx * C, y - 2, cz * C, cx * C + C, y + Math.round(4 / VS), cz * C + C]);
+// (void mode, outside corners: the slabs of the two sides leave the diagonal open — a post closes it)
+if (voidMode)
+  for (const [cx, cz, y] of reach.values())
+    for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const ax = reach.has(key(cx + dx, cz, y)) || reachCols.has(cz * CX + cx + dx), az = reach.has(key(cx, cz + dz, y)) || reachCols.has((cz + dz) * CX + cx);
+      if (ax || az || reachCols.has((cz + dz) * CX + cx + dx) || wallCell(cx + dx, cz + dz, y)) continue;
+      if (overVoid(cx, cz, dx, 0) && overVoid(cx, cz, 0, dz)) clipCells.push([cx + dx, cz + dz, y, dx, dz, true]);
+    }
+const clipBoxes = clipCells.map(([cx, cz, y, dx, dz, post]) => {
+  const top = y + Math.round(4 / VS);
+  if (dx === undefined) return [cx * C, y - 2, cz * C, cx * C + C, top, cz * C + C];
+  // the slab: one voxel thick at the far side (along the way out); a post: one voxel at the far corner
+  const x0 = dx > 0 ? cx * C + C - 1 : dx < 0 ? cx * C : cx * C, x1 = dx > 0 ? cx * C + C : dx < 0 ? cx * C + 1 : cx * C + C;
+  const z0 = dz > 0 ? cz * C + C - 1 : dz < 0 ? cz * C : cz * C, z1 = dz > 0 ? cz * C + C : dz < 0 ? cz * C + 1 : cz * C + C;
+  void post;
+  return [x0, y - 2, z0, x1, top, z1];
+});
 console.log("clip cells", clipCells.length);
 
 // ------------------------------------------------------------------ doorways

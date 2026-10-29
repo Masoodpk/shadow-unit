@@ -20,6 +20,7 @@ import fsbUrl from "../assets/soldier_fsb.glb?url";
 import polishUrl from "../assets/soldier_polish.glb?url";
 import girlUrl from "../assets/soldier_girl.glb?url";
 import winterUrl from "../assets/winter_soldier.glb?url";
+import swatUrl from "../assets/soldier_swat.glb?url";
 import { autoSkin } from "../characters/autoSkin";
 import { retargetSoldierAnims, retargetTable, type RetargetNames } from "./SoldierRetarget";
 
@@ -36,7 +37,7 @@ import { retargetSoldierAnims, retargetTable, type RetargetNames } from "./Soldi
  * soldier girl, and the Winter Soldier as its boss — driven by the same mocap, retargeted onto their
  * own skeletons when the stage loads (SoldierRetarget).
  */
-export type SkinKind = "mark" | "fsb" | "polish" | "girl" | "winter";
+export type SkinKind = "mark" | "fsb" | "polish" | "girl" | "winter" | "swat";
 
 export interface ArmMap {
   up: string;
@@ -125,6 +126,18 @@ export const RIGS: Record<SkinKind, RigMap> = {
     RL: { thigh: "RightUpLeg", calf: "RightLeg", foot: "RightFoot", toe: "RightToeBase" },
     hide: ["extras_GUN.001_0", "extras_PISTOL.001_0", "extras_FLASH.001_0"],
   },
+  // the S.W.A.T. operator: a Mixamo rig (his own rifle and loose patches dropped offline: prep-swat.mjs)
+  swat: {
+    url: swatUrl,
+    hips: "mixamorig:Hips",
+    spine: ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
+    neck: "mixamorig:Neck",
+    head: "mixamorig:Head",
+    L: { up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1", index: "mixamorig:LeftHandIndex1", pinky: "mixamorig:LeftHandPinky1" },
+    R: { up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1", index: "mixamorig:RightHandIndex1", pinky: "mixamorig:RightHandPinky1" },
+    LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+    RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+  },
   // the Winter Soldier: 3ds Max Biped
   winter: {
     url: winterUrl,
@@ -194,6 +207,16 @@ const RETARGET: Partial<Record<SkinKind, { names: RetargetNames; height: number;
           c.transformNodes.push(n);
         }
       }
+    },
+  },
+  swat: {
+    height: 1.82,
+    names: {
+      hips: "mixamorig:Hips", spine: "mixamorig:Spine", chest: "mixamorig:Spine2", neck: "mixamorig:Neck", head: "mixamorig:Head",
+      L: { clav: "mixamorig:LeftShoulder", up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1" },
+      R: { clav: "mixamorig:RightShoulder", up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1" },
+      LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+      RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
     },
   },
   winter: {
@@ -1163,6 +1186,33 @@ export class SoldierSkin {
     this.toRoot(n);
   }
   private pv = [new Vector3(), new Vector3(), new Vector3(), new Vector3(), new Vector3(), new Vector3(), new Vector3(), new Vector3()];
+
+  /**
+   * The body bone nearest a point on him (what a thrown knife sticks into): the one whose segment —
+   * the bone to the next one down the limb — passes closest. Bones follow the drawn body, falls and
+   * ragdoll included (the hitboxes stay with the driver once he's down).
+   */
+  nearestBone(p: Vector3): TransformNode {
+    const b = this.b;
+    const segs: [TransformNode, TransformNode][] = [
+      [b.hips, this.spine[0] ?? b.neck],
+      ...this.spine.map((s, i) => [s, this.spine[i + 1] ?? b.neck] as [TransformNode, TransformNode]),
+      [b.neck, b.head],
+      [b.Lup, b.Lfore], [b.Lfore, b.Lhand], [b.Rup, b.Rfore], [b.Rfore, b.Rhand],
+      [b.Lthigh, b.Lcalf], [b.Lcalf, b.Lfoot], [b.Rthigh, b.Rcalf], [b.Rcalf, b.Rfoot],
+    ];
+    let best = b.hips, bd = Infinity;
+    for (const [a, c] of segs) {
+      const pa = worldPos(a), pc = worldPos(c);
+      const ab = pc.subtract(pa);
+      const t = Math.max(0, Math.min(1, Vector3.Dot(p.subtract(pa), ab) / Math.max(1e-6, ab.lengthSquared())));
+      const d = Vector3.DistanceSquared(p, pa.add(ab.scale(t)));
+      if (d < bd) (bd = d), (best = a);
+    }
+    // (the head bone for a head hit: past the neck segment's top)
+    if (Vector3.DistanceSquared(p, worldPos(b.head)) < bd) best = b.head;
+    return best;
+  }
 
   /** world position of a hand (grenade in the left hand while throwing) */
   handPos(side: "L" | "R", out: Vector3) {

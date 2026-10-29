@@ -30,3 +30,7 @@ The other commands used for the current assets:
 | `prep-soldiers.mjs` | The Underground's soldiers (Polish soldier, Soldier Girl, Winter Soldier): textures → WebP, optional simplify (was `prep-city.mjs`) | `node prep-soldiers.mjs soldier ~/Downloads/polish_soldier.glb ../../src/assets/soldier_polish.glb 1024 0.5` |
 
 `voxel-map.mjs` for the Underground: `--u=0.01 --box=-130,-110,130,30 --outdoor=0 --edges=1` (indoor mode).
+
+| `prep-office2.mjs` | Black Ledger: "Cs_office with real light" (Neo_minigan, CC BY 4.0): textures → WebP, geometry kept | `node prep-office2.mjs ~/Downloads/cs_office_with_real_light.glb ../../src/assets/maps/office2.glb 2048` |
+
+`voxel-map.mjs` for Black Ledger: `--u=1.016 --mode=all --skip=glass --wall=glass --edges=void` (`--report-cut=1` lists walkable floor left out of play, to check nothing real is cut off) (the export's node scale is 0.025 per Source inch; its windows are called `glass`, lower case).

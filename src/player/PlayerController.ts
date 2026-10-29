@@ -185,6 +185,14 @@ export class PlayerController {
 
   /** below this height the player has left the level (fell through a gap): put back on the last safe floor */
   killY = -Infinity;
+  /**
+   * Out of the level (below killY) twice in a row: where to put the player back — a floor point (feet)
+   * near the last safe spot, from the Game's nav graph. The first fall returns him to the last grounded
+   * spot, as always; if that spot drops him straight out again (a ledge over nothing), the loop ends here.
+   */
+  rescueFloor?: (from: Vector3) => Vector3 | null;
+  /** seconds since he was last put back after a fall out of the level */
+  private sinceRescue = 99;
   private safePos = new Vector3();
   private safeT = 0;
 
@@ -250,7 +258,11 @@ export class PlayerController {
       this.safeT = 0;
       this.safePos.copyFrom(this.collider.position);
     }
+    this.sinceRescue += dt;
     if (this.collider.position.y < this.killY) {
+      const floor = this.sinceRescue < 3 ? this.rescueFloor?.(this.safePos) ?? null : null;
+      if (floor) this.safePos.set(floor.x, floor.y + this.halfH + 0.02, floor.z);
+      this.sinceRescue = 0;
       this.collider.position.copyFrom(this.safePos);
       this.velocity.setAll(0);
       this.vy = 0;

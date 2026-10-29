@@ -65,7 +65,7 @@ function path(keys: Key[], t: number, out: Vector3) {
   return out.copyFrom(keys[keys.length - 1].p);
 }
 
-export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContainer, lethal: Record<LethalType, Mesh>): { rig: GrenadeRigApi; parts: FlashbangParts } {
+export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContainer, lethal: Record<LethalType, Mesh>, knife: Mesh): { rig: GrenadeRigApi; parts: FlashbangParts } {
   const id = "flashbang" as const;
   // ---------------------------------------------------------------- arms
   const entries = tpl.container.instantiateModelsToScene((n) => n, false, { doNotInstantiate: true });
@@ -194,6 +194,7 @@ export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContai
   projectile.setEnabled(false);
   const projectiles = { flash: projectile } as Record<GrenadeType, Mesh>;
   for (const type of Object.keys(lethal) as LethalType[]) projectiles[type] = lethal[type];
+  projectiles.knife = knife;
 
   // the grenade sits in the right hand where the M4's pistol grip was: fuze up and forward,
   // ring towards the left hand
@@ -243,6 +244,29 @@ export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContai
     node.setParent(R.wr);
     node.setEnabled(false);
     holders[type] = { node, ring: r, meshes: [mesh] };
+  }
+  // the throwing knife: gripped by its handle (the model's origin), blade up out of the fist
+  {
+    const node = new TransformNode("knifeHeld", scene);
+    const s = new Vector3();
+    const q = new Quaternion();
+    const t = new Vector3();
+    heldCamM.decompose(s, q, t);
+    node.rotationQuaternion = q;
+    node.position.copyFrom(t);
+    const mesh = knife.clone("knifeHeldMesh", node) as Mesh;
+    mesh.position.set(0, 0.012, 0);
+    mesh.scaling.setAll(0.85);
+    // (edge forward, a touch back off the vertical: how it's held up to throw)
+    mesh.rotation.set(-0.12, Math.PI / 2, 0);
+    mesh.setEnabled(true);
+    const r = new TransformNode("knifePin", scene);
+    r.parent = node;
+    node.computeWorldMatrix(true);
+    forceWorld(R.wr);
+    node.setParent(R.wr);
+    node.setEnabled(false);
+    holders.knife = { node, ring: r, meshes: [mesh] };
   }
 
   // ---------------------------------------------------------------- rig nodes
@@ -347,6 +371,8 @@ export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContai
   const LOB_BACK = r(0.06, -0.12, 0.0);
   const LOB_REL = r(0.0, 0.0, 0.3);
   const PIN_HOLD = r(0.01, 0.075, 0.07);
+  /** the throwing knife held up, ready: high at the right of the view, blade up (not wound back out of sight) */
+  const KNIFE_READY = r(0.045, 0.085, 0.03);
   const LEFT_AWAY = v(-0.2, -0.55, 0.12);
   const LEFT_GRAB_OFS = v(-0.06, -0.03, -0.035);
   const POLE_R = v(0.55, -0.45, -0.1);
@@ -361,6 +387,12 @@ export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContai
   ];
   const throwCookedKeys: Key[] = [
     { t: 0, p: WIND },
+    { t: GRENADE.releaseAt, p: RELEASE },
+    { t: 0.62, p: FOLLOW },
+    { t: 1, p: LOW },
+  ];
+  const knifeReadyKeys: Key[] = [
+    { t: 0, p: KNIFE_READY },
     { t: GRENADE.releaseAt, p: RELEASE },
     { t: 0.62, p: FOLLOW },
     { t: 1, p: LOW },
@@ -444,12 +476,17 @@ export function buildGrenadeRig(scene: Scene, tpl: ArmsTemplate, gc: AssetContai
         const k = easeInOutSine(saturate(t / 0.4));
         Vector3.LerpToRef(HOLD, PIN_HOLD, k, rT);
         rot = { rx: -0.1 * k, ry: 0.14 * k, rz: 0 };
+      } else if (phase === "cooked" && held === holders.knife.node) {
+        const k = easeInOutSine(saturate(t / 0.2));
+        Vector3.LerpToRef(HOLD, KNIFE_READY, k, rT);
+        rot = { rx: -0.18 * k, ry: 0.1 * k, rz: -0.06 * k };
       } else if (phase === "cooked") {
         const k = easeInOutSine(saturate(t / 0.22));
         Vector3.LerpToRef(PIN_HOLD, WIND, k, rT);
         rot = { rx: -0.55 * k, ry: 0.15 * k, rz: -0.2 * k };
       } else {
-        const keys = s.lob ? lobKeys : rigState.fromCooked ? throwCookedKeys : throwKeys;
+        const knifeReady = held === holders.knife.node && rigState.fromCooked;
+        const keys = knifeReady ? knifeReadyKeys : s.lob ? lobKeys : rigState.fromCooked ? throwCookedKeys : throwKeys;
         path(keys, t, rT);
         const wind = keys === lobKeys ? 0 : rigState.fromCooked ? 1 - saturate(t / GRENADE.releaseAt) : t < 0.12 ? t / 0.12 : 1 - saturate((t - 0.12) / (GRENADE.releaseAt - 0.12));
         const flick = t >= GRENADE.releaseAt ? saturate((t - GRENADE.releaseAt) / 0.2) : 0;
