@@ -1113,9 +1113,10 @@ export class Game {
 
     // soldier characters download while the level and weapons are built
     // (the Underground's soldiers are its own: the Polish soldier, the soldier girl, the Winter Soldier)
-    const skinsP = this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
-    const hostageP = this.settings.stage === "dust2" ? HostageModel.load(scene) : null;
-    const stationP = this.settings.stage === "office" ? StationModel.load(scene) : null;
+    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
+    // (online: no missions — no hostage, no tape deck, no Winter Soldier; the map and the guns)
+    const hostageP = this.settings.stage === "dust2" && !this.settings.mp ? HostageModel.load(scene) : null;
+    const stationP = this.settings.stage === "office" && !this.settings.mp ? StationModel.load(scene) : null;
     const hulkP = this.heroStage ? HulkModel.load(scene) : null;
     // (Spider-Man: the rigged model, its own skeleton and clips)
     const spideyP = this.heroStage ? SkinnedModel.load(scene, spideyRiggedUrl, 1.78, (m) => {
@@ -1147,7 +1148,7 @@ export class Game {
             m.environmentIntensity = 1.6;
           })
         : null;
-    const lockersP = this.settings.stage === "dust2" ? LockerModel.load(scene) : null;
+    const lockersP = this.settings.stage === "dust2" && !this.settings.mp ? LockerModel.load(scene) : null;
     const info = stageInfo(this.settings.stage);
     const office = info.id === "office";
     progress(0.42, `Loading ${info.name[0] + info.name.slice(1).toLowerCase()}`);
@@ -1776,7 +1777,7 @@ export class Game {
       this.player.collider.surroundingMeshes!.push(station.solid);
       for (const e of this.enemies.enemies) e.collider.surroundingMeshes?.push(station.solid);
     }
-    if (info.id === "metro") {
+    if (info.id === "metro" && !this.settings.mp) {
       const objText = document.getElementById("obj-text")!;
       this.mission = new MetroMission({
         scene,
@@ -1833,6 +1834,8 @@ export class Game {
 
     // perf overlay: always available in dev builds, and in any build while developer mode is on
     this.debug = new DebugOverlay(this.engine, scene);
+    // (online: no developer mode for anyone)
+    if (this.settings.mp) this.settings.devMode = false;
     this.dev.setEnabled(!!this.settings.devMode);
 
     progress(0.82, "Compiling shaders");
@@ -2193,6 +2196,7 @@ export class Game {
   }
 
   setDevMode(on: boolean) {
+    if (this.settings.mp) on = false;
     this.settings.devMode = on;
     this.dev.setEnabled(on);
     if (!on) {
@@ -2274,14 +2278,15 @@ export class Game {
       this.setMuted(!this.audio.muted);
       this.cb.onSettingChange?.("muted", this.audio.muted);
     }
-    if (inp.wasPressed("Backquote")) {
+    if (inp.wasPressed("Backquote") && !this.settings.mp) {
       this.setDevMode(!dev.enabled);
       this.cb.onSettingChange?.("devMode", dev.enabled);
     }
     if (dev.enabled && this.state === "playing") this.devHotkeys();
     // the developer on/off switches by key: god mode (H) and the whole arsenal (L) — developer mode only
     if (this.state === "playing" && (inp.hit("godMode") || inp.hit("arsenal"))) {
-      if (!dev.enabled) this.hud.flashPrompt("DEVELOPER MODE IS OFF · TURN IT ON IN SETTINGS OR CONTROLS");
+      if (this.settings.mp) this.hud.flashPrompt("NOT AVAILABLE ONLINE");
+      else if (!dev.enabled) this.hud.flashPrompt("DEVELOPER MODE IS OFF · TURN IT ON IN SETTINGS OR CONTROLS");
       else if (inp.hit("godMode")) {
         this.setGod(!dev.godOn);
         this.hud.flashPrompt(`GOD MODE ${dev.godOn ? "ON" : "OFF"}`);

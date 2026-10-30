@@ -735,3 +735,13 @@ body.touch #dev, body.touch #aim-hint { display: none !important; }
 .mp-peek .peek-row { display: grid; grid-template-columns: 1fr 48px 48px; padding: 3px 0; text-transform: uppercase; }
 .mp-peek .peek-row .k { color: #7ee08a; text-align: right; }
 .mp-peek .peek-row .d { color: #ff7a7a; text-align: right; }
+
+/* MULTIPLAYER: the map picker (CREATE ROOM / QUICK PLAY) */
+.mp-map-row { display: grid; gap: 8px; }
+.mp-maps { display: flex; flex-wrap: wrap; gap: 8px; }
+.mp-maps button { font: inherit; font-size: 11px; letter-spacing: 0.14em; color: inherit; background: rgba(0,0,0,0.35); border: 1px solid rgba(232,226,214,0.3); padding: 8px 12px; cursor: pointer; }
+.mp-maps button:hover { border-color: rgba(255,106,43,0.7); }
+.mp-maps button.on { background: #ff6a2b; border-color: #ff6a2b; color: #111; font-weight: 700; }
+/* online: no developer switches */
+body.mp-on #set-dev, body.mp-on .dev-switches { display: none !important; }
+body.mp-on label.toggle:has(#set-dev) { display: none !important; }

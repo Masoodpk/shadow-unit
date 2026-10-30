@@ -33,6 +33,10 @@ export interface MpSettings {
   /** room code to join; empty: quick play (any open room) */
   room: string;
   name: string;
+  /** the map this game loaded (a room is on one map: the server says if it's another) */
+  stage: string;
+  /** the room is on another map: load that one and join again */
+  onOtherStage?(room: string, stage: string): void;
 }
 
 export interface MpHost {
@@ -212,7 +216,7 @@ export class MpClient {
     }
     this.ws = ws;
     this.hud.status(this.tries === 0 ? "CONNECTING…" : `WAKING UP THE SERVER… ${Math.round((performance.now() - this.t0) / 1000)} S (IT CAN TAKE A MINUTE AFTER A QUIET SPELL)`);
-    ws.onopen = () => ws.send(JSON.stringify({ t: "join", room: this.cfg.room, name: this.cfg.name, cid: clientId(), spawns: this.spawns }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: "join", room: this.cfg.room, name: this.cfg.name, stage: this.cfg.stage, cid: clientId(), spawns: this.spawns }));
     ws.onmessage = (e) => this.onMessage(JSON.parse(String(e.data)));
     // (closed before it ever answered: the host is waking — try again; dropped mid-match: rejoin the room)
     ws.onclose = () => {
@@ -272,6 +276,12 @@ export class MpClient {
         this.hud.feed(`JOINED ROOM ${m.room} — SHARE THE CODE WITH YOUR FRIENDS`);
         break;
       }
+      case "stage":
+        // (stop here: the page reloads onto the room's map)
+        this.replaced = true;
+        this.hud.status("THIS ROOM IS ON ANOTHER MAP — LOADING IT…");
+        this.cfg.onOtherStage?.(m.room, m.stage);
+        break;
       case "replaced":
         this.replaced = true;
         this.hud.status("YOU JOINED FROM ANOTHER TAB OR WINDOW — THIS ONE IS DISCONNECTED");

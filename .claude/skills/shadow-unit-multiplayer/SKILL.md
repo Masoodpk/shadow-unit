@@ -21,6 +21,12 @@ Read README.md "Online deathmatch, phase 1" first: it has the how-to-play steps 
 - The Vercel site is static: it can't host the WebSocket server. A page on https must use `wss://`.
 - Invite links: `/?room=CODE` opens the MULTIPLAYER screen with the room filled in; the pause menu has COPY INVITE LINK.
 
+## Maps and lockdown
+
+- A room is on one map (`Room.stage`, server `STAGES`: nightshift, dust2, office, metro — never the Heroes Playground). The creator's pick (MULTIPLAYER screen, `mpStage`) goes in the join; JOIN asks `/health?room=` for the room's map first. If a join still arrives on the wrong map, the server answers `{t:"stage"}` and the client reloads onto it (`session.mpAuto` → `startMp`). Quick play only matches rooms on the same map.
+- Online, every map: no garrison (`enemySpawns = []`), no mission (no hostage / lockers / gate on Sandstorm, no tape deck on Frostline, no MetroMission), and the operators' skins (mark / fsb / swat) whatever the stage's own.
+- Online, no developer mode: `Game.setDevMode` forces it off when `settings.mp`, Backquote is ignored, H / L say "NOT AVAILABLE ONLINE", and `body.mp-on` hides the switches in SETTINGS and CONTROLS.
+
 ## No ghosts, no duplicates
 
 - Each browser has its own id (`clientId()` in MpClient, localStorage `su.mpcid`; `?cid=` overrides it, which two-tab tests on one machine need). A join with an id already on the server replaces that player (the old tab gets `{t:"replaced"}` and stops reconnecting); the score carries over within the same room.

@@ -29,6 +29,9 @@ const MAX_HITS_PER_S = 30;
 /** furthest a hit may be claimed from (m) */
 const MAX_RANGE = 260;
 const KINDS = ["swat", "fsb", "mark"];
+/** the maps a room can be on (every stage but the Heroes Playground); a room keeps the one it was made with */
+const STAGES = ["nightshift", "dust2", "office", "metro"];
+const asStage = (s) => (STAGES.includes(s) ? s : STAGES[0]);
 /** health comes back as in single player: after 5 s without a hit, 4 a second */
 const REGEN_DELAY_MS = 5000, REGEN_PER_S = 4;
 
@@ -44,8 +47,9 @@ const clean = (s, n) => String(s ?? "").replace(/[^\p{L}\p{N} _\-.]/gu, "").trim
 const code = () => Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ"[(Math.random() * 24) | 0]).join("");
 
 class Room {
-  constructor(id, open) {
+  constructor(id, open, stage) {
     this.id = id;
+    this.stage = stage;
     /** strangers can be put here by quick play */
     this.open = open;
     /** @type {Map<number, any>} */
@@ -113,6 +117,16 @@ function leave(p) {
 function join(ws, msg) {
   const name = clean(msg.name, 16) || "OPERATOR";
   const cid = clean(msg.cid, 40);
+  let room;
+  const want = clean(msg.room, 8).toUpperCase();
+  const stage = asStage(msg.stage);
+  if (want) room = rooms.get(want) ?? new Room(want, false, stage);
+  else {
+    // quick play: an open room on the same map with space, in a match, else a new one
+    room = [...rooms.values()].find((r) => r.open && r.stage === stage && r.players.size < MAX_PLAYERS && r.phase === "playing") ?? new Room(code(), true, stage);
+  }
+  // (the room is on another map than the one this player loaded: he reloads onto it and joins again)
+  if (room.stage !== stage) return send(ws, { t: "stage", room: room.id, stage: room.stage });
   // the same browser again (a reload, a second tab, a rejoin after a drop): the old one goes, its score comes along
   const old = cid ? byCid.get(cid) : null;
   let carry = null;
@@ -121,13 +135,6 @@ function join(ws, msg) {
     send(old.ws, { t: "replaced" });
     leave(old);
     old.ws.close();
-  }
-  let room;
-  const want = clean(msg.room, 8).toUpperCase();
-  if (want) room = rooms.get(want) ?? new Room(want, false);
-  else {
-    // quick play: an open room with space, in a match, else a new one
-    room = [...rooms.values()].find((r) => r.open && r.players.size < MAX_PLAYERS && r.phase === "playing") ?? new Room(code(), true);
   }
   if (room.players.size >= MAX_PLAYERS) return send(ws, { t: "full", room: room.id });
   rooms.set(room.id, room);
@@ -143,6 +150,7 @@ function join(ws, msg) {
     t: "welcome",
     id: p.id,
     room: room.id,
+    stage: room.stage,
     endsIn: room.phase === "playing" ? room.endsAt - now() : 0,
     players: [...room.players.values()].map((o) => ({ id: o.id, name: o.name, kind: o.kind, k: o.k, d: o.d })),
   });
@@ -191,7 +199,7 @@ const http = createServer((req, res) => {
   // (?room=CODE: who's in it — the invite screen shows it)
   const want = clean(new URL(req.url ?? "/", "http://x").searchParams.get("room"), 8).toUpperCase();
   const r = want ? rooms.get(want) : null;
-  const room = want ? (r ? { id: r.id, players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
+  const room = want ? (r ? { id: r.id, stage: r.stage, players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
   const players = [...rooms.values()].reduce((n, r) => n + r.players.size, 0);
   const open = [...rooms.values()].filter((r) => r.open && r.players.size < MAX_PLAYERS).length;
   res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store" });

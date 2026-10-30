@@ -595,7 +595,7 @@ async function pollMpServer() {
 const invitedRoom = () => (inviteCode && $<HTMLInputElement>("mp-room").value === inviteCode ? inviteCode : "");
 let inviteCode = "";
 /** who's in the invited room right now, under the server line */
-function showRoomPeek(code: string, room: { players: { name: string; k: number; d: number }[]; max: number } | null) {
+function showRoomPeek(code: string, room: { stage?: string; players: { name: string; k: number; d: number }[]; max: number } | null) {
   const el = $("mp-peek");
   el.classList.remove("hidden");
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -604,7 +604,7 @@ function showRoomPeek(code: string, room: { players: { name: string; k: number; 
     return;
   }
   el.innerHTML =
-    `<div class="peek-h">IN ROOM ${code} NOW · ${room.players.length}/${room.max}</div>` +
+    `<div class="peek-h">IN ROOM ${code} NOW · ${room.players.length}/${room.max}${room.stage ? ` · MAP: ${stageInfo(asStage(room.stage)).name}` : ""}</div>` +
     room.players.map((p) => `<div class="peek-row"><span>${esc(p.name)}</span><b class="k">${p.k} K</b><b class="d">${p.d} D</b></div>`).join("");
 }
 function openMp() {
@@ -627,6 +627,7 @@ if (invited && !new URLSearchParams(location.search).has("quick")) {
   $("btn-mp-join").textContent = `JOIN ROOM ${code}`;
   $("btn-mp-create").classList.add("hidden");
   $("btn-mp-quick").classList.add("hidden");
+  $("mp-map-row").classList.add("hidden");
   pendingInvite = true;
 }
 openMpPanel = openMp;
@@ -641,17 +642,57 @@ $("btn-invite-p").addEventListener("click", () => {
   );
   setTimeout(() => ($("btn-invite-p").textContent = "COPY INVITE LINK"), 2500);
 });
-function startMp(room: string) {
+/** the maps a room can be on: every stage but the Heroes Playground */
+const MP_STAGES = STAGES.filter((s) => s.id !== "whiteout");
+let mpStage: StageId = asStage(store.get("mpStage", "nightshift"));
+if (!MP_STAGES.some((s) => s.id === mpStage)) mpStage = "nightshift";
+function drawMpMaps() {
+  const box = $("mp-maps");
+  box.innerHTML = "";
+  for (const s of MP_STAGES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = s.name;
+    b.className = s.id === mpStage ? "on" : "";
+    b.addEventListener("click", () => {
+      mpStage = s.id;
+      store.set("mpStage", s.id);
+      drawMpMaps();
+    });
+    box.appendChild(b);
+  }
+}
+drawMpMaps();
+/** the map a room is on (asked of the server), or null: no such room yet */
+async function roomStage(code: string): Promise<StageId | null> {
+  try {
+    const url = $<HTMLInputElement>("mp-url").value.trim() || mpDefaultUrl();
+    const r = await fetch(mpHealthUrl(url) + `?room=${code}`, { cache: "no-store" });
+    const j = (await r.json()) as { room?: { stage?: string } | null };
+    return j.room?.stage ? asStage(j.room.stage) : null;
+  } catch {
+    return null;
+  }
+}
+/** the room turned out to be on another map: reload straight onto it, and join */
+function mpOtherStage(room: string, st: string) {
+  session.set("mpAuto", JSON.stringify({ room, stage: st, name: mpSettings?.name ?? "OPERATOR", url: mpSettings?.url ?? "" }));
+  location.reload();
+}
+function startMp(room: string, onStage: StageId = mpStage) {
   const name = $<HTMLInputElement>("mp-name").value.trim().slice(0, 16) || "OPERATOR";
   const url = $<HTMLInputElement>("mp-url").value.trim() || mpDefaultUrl();
   store.set("mpName", name);
   store.set("mpRoom", room);
   store.set("mpUrl", url === mpDefaultUrl() ? "" : url);
-  mpSettings = { url, room, name };
+  mpSettings = { url, room, name, stage: onStage, onOtherStage: mpOtherStage };
+  // (online: no developer mode — its switches go, and it's off)
+  document.body.classList.add("mp-on");
+  if (toggles.devMode.value) syncToggle("devMode", false);
   $("btn-invite-p").classList.remove("hidden");
   // (online, RESTART would put you back at the start on your own: the server decides spawns)
   $("btn-restart-p").classList.add("hidden");
-  stage = "nightshift";
+  stage = onStage;
   show("mp", false);
   goFullscreen();
   void deploy();
@@ -663,7 +704,9 @@ $("btn-mp-join").addEventListener("click", () => {
     $("mp-note").textContent = "Type the room code your friend gave you — or CREATE ROOM to make one.";
     return;
   }
-  startMp(room);
+  // (a friend's room: its map, whatever is picked here)
+  $("mp-note").textContent = `Finding room ${room}…`;
+  void roomStage(room).then((st) => startMp(room, st ?? mpStage));
 });
 $("btn-mp-create").addEventListener("click", () => startMp(roomCode()));
 $("btn-mp-quick").addEventListener("click", () => startMp(""));
@@ -1083,15 +1126,27 @@ function installDevHelpers(g: Game) {
 
 // ------------------------------------------------------------------ boot
 const quick = import.meta.env.DEV ? new URLSearchParams(location.search).get("quick") : null;
-if (quick) {
+if (quick && !session.get("mpAuto")) {
   // dev: ?quick=<stage> skips the title and menus and deploys straight away
   show("splash", false);
   engineReady = splashDone = true;
   stage = asStage(quick);
   // (dev: ?quick=nightshift&mp=ROOM&name=X — straight into an online room)
   const q = new URLSearchParams(location.search);
-  if (q.has("mp")) mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV" };
+  if (q.has("mp")) {
+    mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV", stage, onOtherStage: mpOtherStage };
+    document.body.classList.add("mp-on");
+  }
   void deploy();
+} else if (session.get("mpAuto")) {
+  // (joined a room on another map than the one loaded: straight back in, on its map)
+  const a = JSON.parse(session.get("mpAuto")!) as { room: string; stage: string; name: string; url: string };
+  session.set("mpAuto", null);
+  show("splash", false);
+  engineReady = splashDone = true;
+  $<HTMLInputElement>("mp-name").value = a.name;
+  if (a.url) $<HTMLInputElement>("mp-url").value = a.url;
+  startMp(a.room, asStage(a.stage));
 } else if (session.get("autodeploy")) {
   // "NEXT STAGE" from the result screen
   const next = session.get("autodeploy");
