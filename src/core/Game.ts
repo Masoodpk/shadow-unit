@@ -976,6 +976,16 @@ export class Game {
   /** online deathmatch (null: single player) */
   private mp: MpClient | null = null;
   /** online: the room's code (for the invite link), once the server has said it */
+  /** online, the host: start the match / set its length (minutes) */
+  mpStart() {
+    this.mp?.startMatch();
+  }
+  mpSetMins(mins: number) {
+    this.mp?.setMins(mins);
+  }
+  get mpRoomState() {
+    return this.mp?.room ?? null;
+  }
   get mpRoom() {
     return this.mp?.roomCode || "";
   }
@@ -1209,6 +1219,7 @@ export class Game {
       this.glass = new Glass(scene, this.mats, this.audio);
       this.glass.groundAt = (x, y, z, drop) => this.level.nav.floorAt(x, y, z, drop);
       this.glass.build(this.level.glassMesh);
+      if (this.level.sealedGlass) this.glass.seal(this.level.sealedGlass);
       this.level.colliders.push(...this.glass.colliders);
     }
     // hinged doors in the doorways

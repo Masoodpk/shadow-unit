@@ -578,7 +578,9 @@ async function pollMpServer() {
   try {
     const ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), 8000);
-    const code = invitedRoom();
+    // (the invited room — or the code in the field: the last room you were in, so you can see it's still on)
+    const typed = $<HTMLInputElement>("mp-room").value.trim().toUpperCase();
+    const code = invitedRoom() || (/^[A-Z0-9]{3,8}$/.test(typed) ? typed : "");
     const r = await fetch(mpHealthUrl(url) + (code ? `?room=${code}` : ""), { signal: ctl.signal, cache: "no-store" });
     clearTimeout(to);
     type Room = { id: string; players: { name: string; k: number; d: number }[]; max: number } | null;
@@ -586,6 +588,7 @@ async function pollMpServer() {
     el.className = "mp-server ok";
     el.textContent = `● SERVER ONLINE · ${j.players} PLAYING IN ${j.rooms} ROOM${j.rooms === 1 ? "" : "S"} · ${Math.round(performance.now() - t0)} MS`;
     if (code) showRoomPeek(code, j.room ?? null);
+    else $("mp-peek").classList.add("hidden");
   } catch {
     el.className = "mp-server wait";
     el.textContent = "◌ WAKING UP THE SERVER — UP TO A MINUTE AFTER A QUIET SPELL. YOU CAN JOIN NOW: IT KEEPS TRYING.";
@@ -595,17 +598,22 @@ async function pollMpServer() {
 const invitedRoom = () => (inviteCode && $<HTMLInputElement>("mp-room").value === inviteCode ? inviteCode : "");
 let inviteCode = "";
 /** who's in the invited room right now, under the server line */
-function showRoomPeek(code: string, room: { stage?: string; players: { name: string; k: number; d: number }[]; max: number } | null) {
+function showRoomPeek(code: string, room: { stage?: string; phase?: string; mins?: number; host?: string; players: { name: string; k: number; d: number }[]; max: number } | null) {
   const el = $("mp-peek");
   el.classList.remove("hidden");
   const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
   if (!room || !room.players.length) {
-    el.innerHTML = `<div class="peek-h">ROOM ${code}</div><div class="peek-empty">Nobody's in it yet — join, and it starts when your friend comes in.</div>`;
+    el.innerHTML = `<div class="peek-h">ROOM ${code}</div><div class="peek-empty">Nobody's in it now — JOIN opens it again, with you as the host.</div>`;
     return;
   }
   el.innerHTML =
     `<div class="peek-h">IN ROOM ${code} NOW · ${room.players.length}/${room.max}${room.stage ? ` · MAP: ${stageInfo(asStage(room.stage)).name}` : ""}</div>` +
-    room.players.map((p) => `<div class="peek-row"><span>${esc(p.name)}</span><b class="k">${p.k} K</b><b class="d">${p.d} D</b></div>`).join("");
+    room.players.map((p) => `<div class="peek-row"><span>${esc(p.name)}</span><b class="k">${p.k} K</b><b class="d">${p.d} D</b></div>`).join("") +
+    `<div class="peek-empty">${
+      room.phase === "lobby" ? `In the waiting room — ${esc(room.host ?? "the host")} starts the ${room.mins ?? 5}-minute match when everyone's in.`
+      : room.phase === "results" ? "Match over — waiting to play again."
+      : "Match in progress — you'll join it now, with the time that's left."
+    }</div>`;
 }
 function openMp() {
   openPanel("mp", "menu");
@@ -628,6 +636,7 @@ if (invited && !new URLSearchParams(location.search).has("quick")) {
   $("btn-mp-create").classList.add("hidden");
   $("btn-mp-quick").classList.add("hidden");
   $("mp-map-row").classList.add("hidden");
+  $("mp-len-row").classList.add("hidden");
   pendingInvite = true;
 }
 openMpPanel = openMp;
@@ -663,6 +672,54 @@ function drawMpMaps() {
   }
 }
 drawMpMaps();
+/** the match length a room you create starts with (the host can change it in the waiting room) */
+const MP_LENGTHS = [5, 8, 10, 12, 15];
+let mpMins = Number(store.get("mpMins", "5"));
+if (!MP_LENGTHS.includes(mpMins)) mpMins = 5;
+/** a row of minute chips: `on` is lit; `pick` is called with the one tapped */
+function lengthChips(box: HTMLElement, on: number, pick: (m: number) => void) {
+  box.innerHTML = "";
+  for (const m of MP_LENGTHS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = `${m} MIN`;
+    b.className = m === on ? "on" : "";
+    b.addEventListener("click", () => pick(m));
+    box.appendChild(b);
+  }
+}
+const drawMpLens = () =>
+  lengthChips($("mp-lens"), mpMins, (m) => {
+    mpMins = m;
+    store.set("mpMins", String(m));
+    drawMpLens();
+  });
+drawMpLens();
+
+/** the pause menu, online: what the room is doing; the host's START / PLAY AGAIN and match length */
+function drawMpPause(r: import("./net/MpClient").RoomState | null) {
+  if (!r) return;
+  const hostCtl = r.host && !r.open && (r.phase === "lobby" || r.phase === "results");
+  const who = r.host ? "YOU" : r.hostName || "THE HOST";
+  const players = `${r.players} PLAYER${r.players === 1 ? "" : "S"}`;
+  $("mp-pause-state").innerHTML =
+    r.phase === "lobby"
+      ? `WAITING ROOM · ${players} · <b>${r.mins} MIN</b> MATCH<br>${r.open ? "QUICK PLAY: STARTS BY ITSELF WHEN A SECOND PLAYER IS IN" : hostCtl ? "START WHEN EVERYONE'S IN — EVERYONE GETS THE SAME TIME" : `WAITING FOR <b>${who}</b> TO START`}`
+      : r.phase === "countdown"
+        ? `MATCH STARTING… · ${players}`
+        : r.phase === "playing"
+          ? `MATCH IN PROGRESS · ${players} · ${r.mins} MIN`
+          : `MATCH OVER · ${hostCtl ? "PLAY AGAIN, OR EXIT ROOM" : r.open ? "NEXT MATCH STARTS BY ITSELF" : `WAITING FOR <b>${who}</b> TO PLAY AGAIN`}`;
+  $("mp-pause-len-row").classList.toggle("hidden", !hostCtl);
+  $("btn-mp-start").classList.toggle("hidden", !hostCtl);
+  $("btn-mp-start").textContent = r.phase === "results" ? "PLAY AGAIN" : "START MATCH";
+  if (hostCtl) lengthChips($("mp-pause-len"), r.mins, (m) => game?.mpSetMins(m));
+}
+$("btn-mp-start").addEventListener("click", () => {
+  game?.mpStart();
+  // (and straight back into the game)
+  $("btn-resume").click();
+});
 /** the map a room is on (asked of the server), or null: no such room yet */
 async function roomStage(code: string): Promise<StageId | null> {
   try {
@@ -685,7 +742,9 @@ function startMp(room: string, onStage: StageId = mpStage) {
   store.set("mpName", name);
   store.set("mpRoom", room);
   store.set("mpUrl", url === mpDefaultUrl() ? "" : url);
-  mpSettings = { url, room, name, stage: onStage, onOtherStage: mpOtherStage };
+  mpSettings = { url, room, name, stage: onStage, onOtherStage: mpOtherStage, mins: mpMins, onRoom: drawMpPause };
+  $("mp-pause").classList.remove("hidden");
+  $("btn-mainmenu-p").textContent = "EXIT ROOM";
   // (online: no developer mode — its switches go, and it's off)
   document.body.classList.add("mp-on");
   if (toggles.devMode.value) syncToggle("devMode", false);
@@ -698,6 +757,13 @@ function startMp(room: string, onStage: StageId = mpStage) {
   void deploy();
 }
 const roomCode = () => Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ"[(Math.random() * 24) | 0]).join("");
+// (the JOIN button names the room: the code typed, or the last room you were in)
+const joinLabel = () => {
+  const c = $<HTMLInputElement>("mp-room").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  $("btn-mp-join").textContent = c ? `JOIN ROOM ${c}` : "JOIN ROOM";
+};
+$("mp-room").addEventListener("input", joinLabel);
+joinLabel();
 $("btn-mp-join").addEventListener("click", () => {
   const room = $<HTMLInputElement>("mp-room").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!room) {
@@ -727,6 +793,7 @@ function fmtStats(s: RoundStats) {
 function onState(state: GameState, stats?: RoundStats) {
   const info = stageInfo(stage);
   show("pause", state === "paused");
+  if (state === "paused") drawMpPause(game?.mpRoomState ?? null);
   // the pause menu and the result screens have the menu music (the game is silent behind them)
   menuMusic.setActive(state === "paused" || state === "dead" || state === "won");
   show("result", state === "dead" || state === "won");
@@ -1134,8 +1201,12 @@ if (quick && !session.get("mpAuto")) {
   // (dev: ?quick=nightshift&mp=ROOM&name=X — straight into an online room)
   const q = new URLSearchParams(location.search);
   if (q.has("mp")) {
-    mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV", stage, onOtherStage: mpOtherStage };
+    mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV", stage, onOtherStage: mpOtherStage, mins: mpMins, onRoom: drawMpPause };
     document.body.classList.add("mp-on");
+    $("mp-pause").classList.remove("hidden");
+    $("btn-invite-p").classList.remove("hidden");
+    $("btn-restart-p").classList.add("hidden");
+    $("btn-mainmenu-p").textContent = "EXIT ROOM";
   }
   void deploy();
 } else if (session.get("mpAuto")) {

@@ -745,3 +745,8 @@ body.touch #dev, body.touch #aim-hint { display: none !important; }
 /* online: no developer switches */
 body.mp-on #set-dev, body.mp-on .dev-switches { display: none !important; }
 body.mp-on label.toggle:has(#set-dev) { display: none !important; }
+
+/* the pause menu, online: the room and the host's controls */
+.mp-pause { display: grid; gap: 12px; margin: 4px 0 18px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #ff6a2b; background: rgba(0,0,0,0.35); max-width: 420px; }
+.mp-pause-state { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; line-height: 1.6; }
+.mp-pause-state b { color: #ff6a2b; }

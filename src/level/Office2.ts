@@ -144,6 +144,8 @@ export async function buildOffice2(scene: Scene, env: Environment, progress: (p:
     boxes: { data: all, flags },
     floorRange: [floorMin, floorMax],
     glassMesh,
+    // (the one window of 13 that drops you, 3.4 m, into a pit with no way out; the rest are fine)
+    sealedGlass: [[7.12, -8.84, -1.37]],
     surfaceAt: visibleSurface(scene, container.meshes),
     openSky: openSkyTest(scene, container.meshes),
     wallAt: wallTest(scene, container.meshes),

@@ -20,7 +20,11 @@ const css = `
 #mp-hud .mp-feed .mine{border-color:#ff6a2b}
 #mp-hud .mp-feed .me{border-color:#e33}
 #mp-hud .mp-board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(440px,92vw);background:linear-gradient(180deg,#121a20f2,#0a0f13f2);border:1px solid #ffffff1f;border-top:3px solid #ff6a2b;border-radius:6px;box-shadow:0 12px 40px #000a;padding:14px 16px 12px;display:none;letter-spacing:.08em}
-#mp-hud .mp-board.dead{top:auto;bottom:6vh;transform:translateX(-50%)}
+#mp-hud .mp-board.dead,#mp-hud .mp-board.lobby{top:auto;bottom:6vh;transform:translateX(-50%)}
+#mp-hud .mp-board .note{margin-top:10px;padding:8px 10px;border-radius:4px;background:#ff6a2b22;color:#ffd2bd;font-size:11px;line-height:1.6;text-align:center}
+#mp-hud .mp-count{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%);text-align:center;display:none;text-shadow:0 2px 8px #000}
+#mp-hud .mp-count .big{font-size:84px;font-weight:700;color:#ff6a2b;line-height:1}
+#mp-hud .mp-count .small{font-size:14px;margin-top:8px}
 #mp-hud .mp-board.paused{left:auto;right:5vw;transform:translateY(-50%);width:min(400px,44vw)}
 #mp-hud .mp-board .hd{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
 #mp-hud .mp-board h3{margin:0;white-space:nowrap;font-size:14px;color:#ff6a2b;letter-spacing:.14em}
@@ -57,8 +61,9 @@ export class MpHud {
   private feedEl: HTMLDivElement;
   private boardEl: HTMLDivElement;
   private deadEl: HTMLDivElement;
+  private countEl: HTMLDivElement;
   private tagEls: HTMLDivElement[] = [];
-  private resultsUntil = 0;
+  /** the last match's scores while the results are up (they stay until the next start) */
   private final: ScoreRow[] | null = null;
   private boardHtml = "";
   /** match time left (ms) */
@@ -74,7 +79,7 @@ export class MpHud {
     document.head.appendChild(st);
     this.el = document.createElement("div");
     this.el.id = "mp-hud";
-    this.el.innerHTML = `<div class="mp-clock"></div><div class="mp-room"></div><div class="mp-status"></div><div class="mp-feed"></div><div class="mp-board"></div><div class="mp-dead"><div class="big"></div><div class="small"></div></div>`;
+    this.el.innerHTML = `<div class="mp-clock"></div><div class="mp-room"></div><div class="mp-status"></div><div class="mp-feed"></div><div class="mp-board"></div><div class="mp-dead"><div class="big"></div><div class="small"></div></div><div class="mp-count"><div class="big"></div><div class="small"></div></div>`;
     document.body.appendChild(this.el);
     const q = (s: string) => this.el.querySelector(s) as HTMLDivElement;
     this.clockEl = q(".mp-clock");
@@ -83,6 +88,7 @@ export class MpHud {
     this.feedEl = q(".mp-feed");
     this.boardEl = q(".mp-board");
     this.deadEl = q(".mp-dead");
+    this.countEl = q(".mp-count");
     // (Tab can't be a bound action — browsers move focus with it — so the scoreboard listens for it itself)
     addEventListener("keydown", (e) => {
       if (e.code === "Tab") {
@@ -100,11 +106,13 @@ export class MpHud {
     this.statusEl.style.display = text ? "block" : "none";
   }
 
-  clock(ms: number) {
+  /** the top line: the match clock, or what the room is doing ("WAITING ROOM", "MATCH OVER") */
+  clock(ms: number, text = "") {
     this.left = ms;
     const s = Math.ceil(ms / 1000);
-    this.clockEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-    this.clockEl.style.color = s <= 30 ? "#ff6a2b" : "";
+    this.clockEl.textContent = text || `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    this.clockEl.style.color = !text && s <= 30 ? "#ff6a2b" : "";
+    this.clockEl.style.fontSize = text ? "16px" : "";
     this.roomEl.innerHTML = this.room
       ? `ROOM <b>${this.room}</b> · ${this.count <= 1 ? "<b>ONLY YOU HERE</b> — ESC → COPY INVITE LINK" : `${this.count} PLAYERS`} · HOLD TAB FOR SCORES`
       : "";
@@ -119,21 +127,34 @@ export class MpHud {
     while (this.feedEl.children.length > 6) this.feedEl.firstChild?.remove();
   }
 
-  /** the scoreboard. "tab": centre; "dead": under the death message; "paused": beside the pause menu */
-  board(scores: ScoreRow[], me: number, mode: "off" | "tab" | "dead" | "paused") {
-    const final = this.final && performance.now() < this.resultsUntil;
+  /** the big countdown before a match ("3"), or nothing */
+  countdown(s: number) {
+    this.countEl.style.display = s > 0 ? "block" : "none";
+    if (s > 0) {
+      (this.countEl.querySelector(".big") as HTMLDivElement).textContent = String(s);
+      (this.countEl.querySelector(".small") as HTMLDivElement).textContent = "GET READY — THE MATCH IS STARTING";
+    }
+  }
+
+  /**
+   * the scoreboard. "tab": centre; "dead": under the death message; "paused": beside the pause menu;
+   * "lobby": along the bottom while the room waits. `note`: what happens next (who starts, which key)
+   */
+  board(scores: ScoreRow[], me: number, mode: "off" | "tab" | "dead" | "paused" | "lobby", note = "", meta = "") {
+    const final = !!this.final;
     const rows = final ? this.final! : scores;
     if (mode === "off" && !final) {
       this.boardEl.style.display = "none";
       return;
     }
     const sorted = [...rows].sort((a, b) => b.k - a.k || a.d - b.d);
-    const title = final ? (sorted[0] ? `MATCH OVER — ${sorted[0].id === me ? "YOU WIN!" : esc(sorted[0].name) + " WINS"}` : "MATCH OVER") : "PLAYERS IN THIS ROOM";
-    const meta = `ROOM ${esc(this.room)} · ${rows.length}/8${final ? "" : ` · ${fmt(this.left)} LEFT`}`;
-    const sub = final ? `NEXT MATCH IN ${Math.max(0, Math.ceil((this.resultsUntil - performance.now()) / 1000))} S` : mode === "tab" ? "RELEASE TAB TO CLOSE" : "";
+    // (level on kills and deaths at the top: nobody won)
+    const draw = sorted.length > 1 && sorted[0].k === sorted[1].k && sorted[0].d === sorted[1].d;
+    const title = final ? (sorted[0] && !draw ? `MATCH OVER — ${sorted[0].id === me ? "YOU WIN!" : esc(sorted[0].name) + " WINS"}` : draw ? "MATCH OVER — IT'S A DRAW" : "MATCH OVER") : mode === "lobby" ? "WAITING ROOM" : "PLAYERS IN THIS ROOM";
+    const head = `ROOM ${esc(this.room)} · ${rows.length}/8${meta ? " · " + esc(meta) : final ? "" : ` · ${fmt(this.left)} LEFT`}`;
     const lead = sorted[0]?.k ?? 0;
     const html =
-      `<div class="hd"><h3>${title}</h3><div class="meta">${meta}</div></div>` +
+      `<div class="hd"><h3>${title}</h3><div class="meta">${head}</div></div>` +
       `<div class="row head"><div>#</div><div>PLAYER</div><div class="k">KILLS</div><div class="d">DEATHS</div></div>` +
       sorted
         .map(
@@ -144,16 +165,17 @@ export class MpHud {
         )
         .join("") +
       (rows.length <= 1 && !final ? `<div class="wait">WAITING FOR FRIENDS…<br>PRESS ESC → <b>COPY INVITE LINK</b> AND SEND IT, OR TELL THEM ROOM CODE <b>${esc(this.room)}</b></div>` : "") +
-      (sub ? `<div class="sub">${sub}</div>` : "");
+      (note ? `<div class="note">${esc(note)}</div>` : "") +
+      (mode === "tab" ? `<div class="sub">RELEASE TAB TO CLOSE</div>` : "");
     // (only touched when it changed: this runs every frame)
     if (html !== this.boardHtml) this.boardEl.innerHTML = this.boardHtml = html;
-    this.boardEl.className = `mp-board${final ? "" : mode === "dead" ? " dead" : mode === "paused" ? " paused" : ""}`;
+    this.boardEl.className = `mp-board${final && mode !== "paused" ? "" : mode === "dead" ? " dead" : mode === "paused" ? " paused" : mode === "lobby" ? " lobby" : ""}`;
     this.boardEl.style.display = "block";
   }
 
-  results(scores: ScoreRow[] | null, _me: number, nextMs: number) {
+  /** the results up (the last match's scores), or down (a new match) */
+  results(scores: ScoreRow[] | null) {
     this.final = scores;
-    this.resultsUntil = scores ? performance.now() + nextMs : 0;
   }
 
   dead(by: string | null) {

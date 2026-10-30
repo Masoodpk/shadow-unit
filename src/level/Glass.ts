@@ -30,6 +30,8 @@ interface Pane {
   visual: Mesh;
   collider: Mesh;
   broken: boolean;
+  /** broken or not, nobody gets through (bullets do) */
+  sealed?: boolean;
   /** the pane's middle (blasts) and its vertices (world): where the shards fall from */
   center: Vector3;
   pts: number[];
@@ -316,9 +318,12 @@ export class Glass {
     if (!p || p.broken) return false;
     p.broken = true;
     p.visual.setEnabled(false);
-    p.collider.setEnabled(false);
     p.collider.isPickable = false;
-    p.collider.checkCollisions = false;
+    // (a sealed pane's collider stays for movement: you can't climb out through it)
+    if (!p.sealed) {
+      p.collider.setEnabled(false);
+      p.collider.checkCollisions = false;
+    }
     this.spawnPieces(point, dir, p, 34);
     const ps = this.shards;
     (ps.emitter as Vector3).copyFrom(point);
@@ -351,6 +356,17 @@ export class Glass {
       if (p.broken) continue;
       if (Vector3.Distance(p.center, pos) < radius * 0.8) this.hit(p.collider as never, p.center.clone(), p.center.subtract(pos).normalize());
     }
+  }
+
+  /** these panes (by their middle, within 0.3 m) keep blocking movement once broken */
+  seal(centers: [number, number, number][]) {
+    let n = 0;
+    for (const p of this.panes)
+      if (centers.some(([x, y, z]) => Math.abs(p.center.x - x) < 0.3 && Math.abs(p.center.y - y) < 0.3 && Math.abs(p.center.z - z) < 0.3)) {
+        p.sealed = true;
+        n++;
+      }
+    if (n !== centers.length) console.warn(`glass: sealed ${n} of ${centers.length} panes`);
   }
 
   reset() {

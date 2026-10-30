@@ -38,6 +38,17 @@ import { Ray } from "@babylonjs/core/Culling/ray";
  */
 
 const UNIT = 0.0254;
+
+/**
+ * Frostline's windows that must stay shut when broken (found by jumping through every one of the 131
+ * panes from each side with floor): the south and west walls drop you outside the map, 30–50 m from
+ * any floor; (-42.3, -21.2) catches you in its frame. The other panes either stop you or land you on playable floor, and are left as they are.
+ */
+const OFFICE_SEALED_GLASS: [number, number, number][] = [
+  [-35.97, -2.6, -26.92], [-30.48, -2.6, -26.92], [-23.98, -2.6, -26.92], [-22.96, -2.6, -26.92], [-18.08, -2.6, -26.92],
+  [-42.27, -2.6, -21.23],
+  [-46.02, -2.6, -18.49], [-46.02, -2.6, -17.48], [-46.02, -2.6, -16.26], [-46.02, -2.6, -15.24],
+];
 const CHUNK = 8;
 
 interface OfficeData {
@@ -170,6 +181,7 @@ export async function buildOffice(scene: Scene, env: Environment, progress: (p: 
     boxes: { data: all, flags },
     floorRange: [floorMin, floorMax],
     glassMesh,
+    sealedGlass: OFFICE_SEALED_GLASS,
     surfaceAt: visibleSurface(scene, container.meshes),
     openSky: openSkyTest(scene, container.meshes),
     wallAt: wallTest(scene, container.meshes),

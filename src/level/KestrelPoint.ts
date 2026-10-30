@@ -37,6 +37,11 @@ export interface LevelData {
   doors?: number[][];
   /** breakable window glass (split into panes by the game) */
   glassMesh?: Mesh;
+  /**
+   * panes (by their middle) that still block you once broken: jumping through them lands you
+   * somewhere you can't get back from (stuck in the frame, outside the map, a pit); bullets pass
+   */
+  sealedGlass?: [number, number, number][];
   /** height of the visible surface under a point (the collision voxels are up to 12.5 cm off): decals */
   surfaceAt?: (x: number, y: number, z: number) => { y: number; snow: boolean } | null;
   /** distance to the drawn wall along a horizontal ray (when it differs from the collision boxes) */

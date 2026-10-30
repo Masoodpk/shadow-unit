@@ -1,7 +1,9 @@
 // SHADOW UNIT — online deathmatch server (phase 1).
 //
-// One Node process, many rooms of up to 8. Free-for-all: 5-minute matches, respawn 3 s after a death
-// at the spawn point farthest from everyone else, kills / deaths scoreboard, results, then a new match.
+// One Node process, many rooms of up to 8. Free-for-all: the room's creator (the host) starts the match
+// when everyone's in, at the length he picked (5–15 minutes), so everyone gets the same time; respawn 3 s
+// after a death at the spawn point farthest from everyone else; kills / deaths; the results stay up until
+// the host plays again. Quick-play rooms (strangers) start and restart by themselves.
 //
 // Who decides what:
 //   - movement: each client moves itself (instant, predicted); the server relays it to the others
@@ -10,14 +12,19 @@
 //     numbers — "what you see is what you hit") and claims the hit; the server checks the claim (both
 //     alive, range, damage cap, rate) and applies it. Kills, deaths and health are the server's.
 //
-//   npm run server            (PORT, default 8787; MP_MATCH_S match length in seconds, default 300)
+//   npm run server            (PORT, default 8787; MP_MATCH_S=<seconds> overrides every match length — tests)
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const TICK_HZ = 20;
-/** match length: 5 minutes (MP_MATCH_S=<seconds> to change it) */
-const MATCH_MS = (Number(process.env.MP_MATCH_S) || 5 * 60) * 1000;
+/** match lengths the host can pick (minutes); MP_MATCH_S=<seconds> overrides them all (tests) */
+const LENGTHS = [5, 8, 10, 12, 15];
+const matchMs = (mins) => (Number(process.env.MP_MATCH_S) || mins * 60) * 1000;
+/** the countdown between START and the clock running (everyone spawned apart, no damage yet) */
+const COUNTDOWN_MS = 4000;
+/** quick play (strangers, no host to wait for): starts this long after a second player comes in, and again after the results */
+const AUTO_START_MS = 15 * 1000;
 const RESULTS_MS = 12 * 1000;
 const RESPAWN_MS = 3000;
 const MAX_PLAYERS = 8;
@@ -46,26 +53,52 @@ const send = (ws, msg) => ws.readyState === 1 && ws.send(JSON.stringify(msg));
 const clean = (s, n) => String(s ?? "").replace(/[^\p{L}\p{N} _\-.]/gu, "").trim().slice(0, n);
 const code = () => Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ"[(Math.random() * 24) | 0]).join("");
 
+// A room's life: "lobby" (players come in and walk about; no damage, no clock) → the host presses START
+// → "countdown" (everyone respawned apart, 4 s) → "playing" (the clock runs: the length the host picked)
+// → "results" (scores stay up until the host starts again, or people leave). Quick-play rooms have
+// no host to wait for: they start by themselves.
 class Room {
-  constructor(id, open, stage) {
+  constructor(id, open, stage, mins) {
     this.id = id;
     this.stage = stage;
     /** strangers can be put here by quick play */
     this.open = open;
+    this.mins = LENGTHS.includes(mins) ? mins : 5;
     /** @type {Map<number, any>} */
     this.players = new Map();
     /** spawn points [x, y, z, yaw] — the map's, sent by the first client in (every client computes the same list) */
     this.spawns = [];
-    this.newMatch();
+    /** the player who starts matches (the room's creator; the next one in if he leaves) */
+    this.host = 0;
+    this.phase = "lobby";
+    this.startsAt = this.endsAt = this.autoAt = 0;
   }
-  newMatch() {
-    this.phase = "playing";
-    this.endsAt = now() + MATCH_MS;
+  info() {
+    const t = now();
+    return {
+      t: "room",
+      host: this.host,
+      phase: this.phase,
+      mins: this.mins,
+      open: this.open,
+      startsIn: this.phase === "countdown" ? this.startsAt - t : 0,
+      endsIn: this.phase === "playing" ? this.endsAt - t : 0,
+      autoIn: this.autoAt ? Math.max(0, this.autoAt - t) : 0,
+    };
+  }
+  /** START (the host, or quick play's timer): scores to zero, everyone respawned apart, the countdown */
+  start() {
+    if (this.phase !== "lobby" && this.phase !== "results") return;
+    this.phase = "countdown";
+    this.startsAt = now() + COUNTDOWN_MS;
+    this.autoAt = 0;
     for (const p of this.players.values()) {
       p.k = p.d = 0;
-      this.spawn(p);
+      p.alive = false;
     }
-    this.broadcast({ t: "start", endsIn: MATCH_MS });
+    for (const p of this.players.values()) this.spawn(p);
+    this.broadcast({ t: "start", scores: this.scores() });
+    this.broadcast(this.info());
   }
   broadcast(msg, except) {
     const s = JSON.stringify(msg);
@@ -88,12 +121,18 @@ class Room {
   }
   tick() {
     const t = now();
-    if (this.phase === "playing" && t >= this.endsAt) {
+    if (this.phase === "countdown" && t >= this.startsAt) {
+      this.phase = "playing";
+      this.endsAt = t + matchMs(this.mins);
+      this.broadcast(this.info());
+    } else if (this.phase === "playing" && t >= this.endsAt) {
       this.phase = "results";
-      this.resultsUntil = t + RESULTS_MS;
-      this.broadcast({ t: "end", scores: this.scores(), next: RESULTS_MS });
-    } else if (this.phase === "results" && t >= this.resultsUntil) this.newMatch();
-    if (this.phase === "playing")
+      // (quick play goes again by itself; a friends' room waits for its host)
+      this.autoAt = this.open ? t + RESULTS_MS : 0;
+      this.broadcast({ t: "end", scores: this.scores() });
+      this.broadcast(this.info());
+    } else if (this.autoAt && t >= this.autoAt) this.start();
+    if (this.phase !== "results")
       for (const p of this.players.values()) {
         if (!p.alive && p.respawnAt && t >= p.respawnAt) this.spawn(p);
         else if (p.alive && p.hp < MAX_HP && t - (p.hurtAt ?? 0) > REGEN_DELAY_MS) p.hp = Math.min(MAX_HP, p.hp + REGEN_PER_S / TICK_HZ);
@@ -111,6 +150,12 @@ function leave(p) {
   if (byCid.get(p.cid) === p) byCid.delete(p.cid);
   room.broadcast({ t: "leave", id: p.id, scores: room.scores() });
   if (!room.players.size) rooms.delete(room.id);
+  else {
+    // the host left: the one who has been here longest takes over
+    if (room.host === p.id) room.host = room.players.keys().next().value;
+    if (room.open && room.players.size < 2 && room.phase === "lobby") room.autoAt = 0;
+    room.broadcast(room.info());
+  }
   console.log(`[${room.id}] ${p.name} left (${room.players.size})`);
 }
 
@@ -120,10 +165,11 @@ function join(ws, msg) {
   let room;
   const want = clean(msg.room, 8).toUpperCase();
   const stage = asStage(msg.stage);
-  if (want) room = rooms.get(want) ?? new Room(want, false, stage);
+  const mins = Number(msg.mins) | 0;
+  if (want) room = rooms.get(want) ?? new Room(want, false, stage, mins);
   else {
     // quick play: an open room on the same map with space, in a match, else a new one
-    room = [...rooms.values()].find((r) => r.open && r.stage === stage && r.players.size < MAX_PLAYERS && r.phase === "playing") ?? new Room(code(), true, stage);
+    room = [...rooms.values()].find((r) => r.open && r.stage === stage && r.players.size < MAX_PLAYERS && r.phase !== "results") ?? new Room(code(), true, stage, 5);
   }
   // (the room is on another map than the one this player loaded: he reloads onto it and joins again)
   if (room.stage !== stage) return send(ws, { t: "stage", room: room.id, stage: room.stage });
@@ -142,20 +188,24 @@ function join(ws, msg) {
   const used = new Set([...room.players.values()].map((p) => p.kind));
   const p = { id: nextId++, ws, name, room, kind: KINDS.find((k) => !used.has(k)) ?? KINDS[room.players.size % KINDS.length], x: 0, y: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, stance: 0, weapon: "rifle", reload: 0, alive: false, hp: MAX_HP, k: 0, d: 0, respawnAt: 0, spawnedAt: 0, hits: [] };
   p.cid = cid;
-  if (carry && room.phase === "playing") Object.assign(p, carry);
+  if (carry && room.phase !== "results") Object.assign(p, carry);
   room.players.set(p.id, p);
   if (cid) byCid.set(cid, p);
   ws.player = p;
+  if (!room.host || !room.players.has(room.host)) room.host = p.id;
+  // (quick play: a second player in the lobby starts the clock to the match)
+  if (room.open && room.phase === "lobby" && room.players.size >= 2 && !room.autoAt) room.autoAt = now() + AUTO_START_MS;
   send(ws, {
     t: "welcome",
     id: p.id,
     room: room.id,
     stage: room.stage,
-    endsIn: room.phase === "playing" ? room.endsAt - now() : 0,
     players: [...room.players.values()].map((o) => ({ id: o.id, name: o.name, kind: o.kind, k: o.k, d: o.d })),
   });
+  send(ws, room.info());
   room.broadcast({ t: "join", id: p.id, name: p.name, kind: p.kind }, p);
-  if (room.phase === "playing") room.spawn(p);
+  room.broadcast(room.info(), p);
+  room.spawn(p);
   console.log(`[${room.id}] ${name} joined (${room.players.size})`);
 }
 
@@ -199,7 +249,7 @@ const http = createServer((req, res) => {
   // (?room=CODE: who's in it — the invite screen shows it)
   const want = clean(new URL(req.url ?? "/", "http://x").searchParams.get("room"), 8).toUpperCase();
   const r = want ? rooms.get(want) : null;
-  const room = want ? (r ? { id: r.id, stage: r.stage, players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
+  const room = want ? (r ? { id: r.id, stage: r.stage, phase: r.phase, mins: r.mins, host: r.players.get(r.host)?.name ?? "", players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
   const players = [...rooms.values()].reduce((n, r) => n + r.players.size, 0);
   const open = [...rooms.values()].filter((r) => r.open && r.players.size < MAX_PLAYERS).length;
   res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store" });
@@ -221,12 +271,18 @@ wss.on("connection", (ws) => {
     else if (m.t === "hit") onHit(p, m);
     else if (m.t === "fire") p.alive && p.room.broadcast({ t: "fire", id: p.id, o: m.o, d: m.d, w: clean(m.w, 12) }, p);
     else if (m.t === "ping") send(ws, { t: "pong", c: m.c, st: now() });
-    else if (m.t === "died" && p.alive && p.room.phase === "playing") {
-      // (a fall, a grenade of your own: a death, no one's kill)
+    else if (m.t === "died" && p.alive) {
+      // (a fall, a grenade of your own: a death, no one's kill — counted only while the clock runs)
       p.alive = false;
-      p.d++;
+      if (p.room.phase === "playing") p.d++;
       p.respawnAt = now() + RESPAWN_MS;
       p.room.broadcast({ t: "kill", by: p.id, to: p.id, head: false, w: "fall", scores: p.room.scores() });
+    }
+    // the host's controls: START (from the lobby or the results) and the match length
+    else if (m.t === "start" && p.room.host === p.id) p.room.start();
+    else if (m.t === "mins" && p.room.host === p.id && LENGTHS.includes(m.mins | 0) && (p.room.phase === "lobby" || p.room.phase === "results")) {
+      p.room.mins = m.mins | 0;
+      p.room.broadcast(p.room.info());
     }
   });
   ws.on("close", () => ws.player && leave(ws.player));

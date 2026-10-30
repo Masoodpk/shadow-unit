@@ -21,6 +21,12 @@ Read README.md "Online deathmatch, phase 1" first: it has the how-to-play steps 
 - The Vercel site is static: it can't host the WebSocket server. A page on https must use `wss://`.
 - Invite links: `/?room=CODE` opens the MULTIPLAYER screen with the room filled in; the pause menu has COPY INVITE LINK.
 
+## Room life (host-started matches)
+
+- Server phases: `lobby` (walk about, no damage, no clock) → host `{t:"start"}` → `countdown` (4 s, everyone respawned apart, scores zeroed) → `playing` (clock = host's `mins`: 5/8/10/12/15, `{t:"mins"}` in lobby/results) → `results` (stays until the host starts again). `{t:"room"}` carries `host, phase, mins, open, startsIn, endsIn, autoIn` on every change. Host = creator; the longest-present player takes over if he leaves. Quick-play rooms (`open`) start 15 s after a second player and restart 12 s after results by themselves.
+- Hits only count in `playing`; a death outside it respawns without counting. `MP_MATCH_S` overrides every length (tests).
+- Client: ENTER starts for the host (lobby/results); the pause menu (`#mp-pause`, `drawMpPause` via `MpSettings.onRoom`) has START MATCH / PLAY AGAIN and the length chips for the host, the room's state for everyone, and MAIN MENU reads EXIT ROOM. The MULTIPLAYER screen picks map + length for CREATE; JOIN peeks the typed / last room (`/health?room=` → phase, host, players).
+
 ## Maps and lockdown
 
 - A room is on one map (`Room.stage`, server `STAGES`: nightshift, dust2, office, metro — never the Heroes Playground). The creator's pick (MULTIPLAYER screen, `mpStage`) goes in the join; JOIN asks `/health?room=` for the room's map first. If a join still arrives on the wrong map, the server answers `{t:"stage"}` and the client reloads onto it (`session.mpAuto` → `startMp`). Quick play only matches rooms on the same map.

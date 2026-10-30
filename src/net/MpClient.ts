@@ -37,6 +37,22 @@ export interface MpSettings {
   stage: string;
   /** the room is on another map: load that one and join again */
   onOtherStage?(room: string, stage: string): void;
+  /** match length (minutes) for a room this join creates */
+  mins?: number;
+  /** the room changed (host, phase, length): the pause menu shows the host's controls */
+  onRoom?(r: RoomState): void;
+}
+
+/** what the room is doing, for the menus */
+export interface RoomState {
+  phase: "lobby" | "countdown" | "playing" | "results";
+  /** you start matches here */
+  host: boolean;
+  hostName: string;
+  mins: number;
+  /** quick play: starts by itself */
+  open: boolean;
+  players: number;
 }
 
 export interface MpHost {
@@ -175,7 +191,13 @@ export class MpClient {
   private offset: number | null = null;
   private sendAcc = 0;
   private endsAt = 0;
-  private results = false;
+  private phase: RoomState["phase"] = "lobby";
+  private hostId = 0;
+  private mins = 5;
+  private open = false;
+  /** performance.now() when the countdown ends / quick play starts by itself */
+  private startsAt = 0;
+  private autoAt = 0;
   private deadSince = -1;
   private killedBy = "";
   readonly hud: MpHud;
@@ -191,10 +213,28 @@ export class MpClient {
     this.connect();
     // (closing the tab or leaving: out of the room at once, not after the server notices)
     addEventListener("pagehide", () => this.ws?.close());
+    // the host starts the match with ENTER (in the waiting room, and again after the results)
+    addEventListener("keydown", (e) => {
+      if (e.code === "Enter" && !this.paused && this.isHost && (this.phase === "lobby" || this.phase === "results")) this.startMatch();
+    });
   }
 
   get roomCode() {
     return this.hud.room;
+  }
+  get isHost() {
+    return !!this.me && this.hostId === this.me;
+  }
+  get room(): RoomState {
+    return { phase: this.phase, host: this.isHost, hostName: this.names.get(this.hostId) ?? "", mins: this.mins, open: this.open, players: this.scores.length };
+  }
+  /** the host: start the match (from the waiting room or the results) */
+  startMatch() {
+    if (this.isHost) this.send({ t: "start" });
+  }
+  /** the host: the match length, in minutes (5, 8, 10, 12 or 15) */
+  setMins(mins: number) {
+    if (this.isHost) this.send({ t: "mins", mins });
   }
 
   /** attempts since the last good connection (a sleeping free host takes up to a minute to answer) */
@@ -216,7 +256,7 @@ export class MpClient {
     }
     this.ws = ws;
     this.hud.status(this.tries === 0 ? "CONNECTING…" : `WAKING UP THE SERVER… ${Math.round((performance.now() - this.t0) / 1000)} S (IT CAN TAKE A MINUTE AFTER A QUIET SPELL)`);
-    ws.onopen = () => ws.send(JSON.stringify({ t: "join", room: this.cfg.room, name: this.cfg.name, stage: this.cfg.stage, cid: clientId(), spawns: this.spawns }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: "join", room: this.cfg.room, name: this.cfg.name, stage: this.cfg.stage, mins: this.cfg.mins, cid: clientId(), spawns: this.spawns }));
     ws.onmessage = (e) => this.onMessage(JSON.parse(String(e.data)));
     // (closed before it ever answered: the host is waking — try again; dropped mid-match: rejoin the room)
     ws.onclose = () => {
@@ -254,7 +294,8 @@ export class MpClient {
 
   private onMessage(m: any) {
     this.handle(m);
-    if (this.paused && (m.t === "join" || m.t === "leave" || m.t === "kill" || m.t === "end" || m.t === "start")) this.refreshBoard();
+    if (this.paused && (m.t === "join" || m.t === "leave" || m.t === "kill" || m.t === "end" || m.t === "start" || m.t === "room")) this.refreshBoard();
+    if (m.t === "room" || m.t === "join" || m.t === "leave" || m.t === "welcome") this.cfg.onRoom?.(this.room);
   }
 
   private handle(m: any) {
@@ -271,9 +312,25 @@ export class MpClient {
           this.kinds.set(p.id, p.kind);
         }
         this.scores = m.players.map((p: any) => ({ id: p.id, name: p.name, k: p.k, d: p.d }));
-        this.endsAt = performance.now() + m.endsIn;
         this.hud.status("");
-        this.hud.feed(`JOINED ROOM ${m.room} — SHARE THE CODE WITH YOUR FRIENDS`);
+        this.hud.feed(`JOINED ROOM ${m.room}`);
+        break;
+      }
+      case "room": {
+        const was = this.phase;
+        this.phase = m.phase;
+        this.hostId = m.host;
+        this.mins = m.mins;
+        this.open = !!m.open;
+        const t = performance.now();
+        if (m.phase === "playing") this.endsAt = t + m.endsIn;
+        this.startsAt = m.phase === "countdown" ? t + m.startsIn : 0;
+        this.autoAt = m.autoIn > 0 ? t + m.autoIn : 0;
+        if (m.phase === "playing" && was === "countdown") this.hud.feed("GO! — MOST KILLS WINS", "mine");
+        // (results up only while the room is on them: a rejoin mid-match shows none)
+        if (m.phase !== "results") {
+          this.hud.results(null);
+        }
         break;
       }
       case "stage":
@@ -360,16 +417,13 @@ export class MpClient {
         break;
       }
       case "end":
-        this.results = true;
         this.scores = m.scores;
-        this.hud.results(m.scores, this.me, m.next);
+        this.hud.results(m.scores);
         break;
       case "start":
-        this.results = false;
-        this.endsAt = performance.now() + m.endsIn;
-        this.scores = this.scores.map((s) => ({ ...s, k: 0, d: 0 }));
-        this.hud.results(null, this.me, 0);
-        this.hud.feed("NEW MATCH — GO");
+        this.scores = m.scores;
+        this.hud.results(null);
+        this.hud.feed("MATCH STARTING");
         break;
     }
   }
@@ -377,7 +431,24 @@ export class MpClient {
   /** the scoreboard: at the results, while Tab is held, while you're dead, and beside the pause menu */
   private refreshBoard() {
     this.hud.count = this.scores.length;
-    this.hud.board(this.scores, this.me, this.paused ? "paused" : this.hud.tabHeld ? "tab" : this.deadSince >= 0 ? "dead" : "off");
+    const lobby = this.phase === "lobby";
+    const mode = this.paused ? "paused" : this.hud.tabHeld ? "tab" : this.deadSince >= 0 ? "dead" : lobby ? "lobby" : "off";
+    this.hud.board(this.scores, this.me, mode, this.nextNote(), lobby || this.phase === "countdown" ? `${this.mins} MIN MATCH` : "");
+  }
+
+  /** what happens next, and who does it (under the board in the waiting room and at the results) */
+  private nextNote() {
+    if (this.phase !== "lobby" && this.phase !== "results") return "";
+    const again = this.phase === "results";
+    const auto = this.autoAt ? Math.max(0, Math.ceil((this.autoAt - performance.now()) / 1000)) : 0;
+    if (this.open) return auto ? `${again ? "NEXT MATCH" : "MATCH STARTS"} BY ITSELF IN ${auto} S` : "WAITING FOR ANOTHER PLAYER TO JOIN…";
+    const touch = matchMedia("(pointer: coarse)").matches;
+    if (this.isHost)
+      return touch
+        ? `YOU'RE THE HOST · PAUSE (‖) → ${again ? "PLAY AGAIN" : "START MATCH"} WHEN EVERYONE'S IN · OR EXIT ROOM`
+        : `YOU'RE THE HOST · PRESS ENTER TO ${again ? "PLAY AGAIN" : "START"} WHEN EVERYONE'S IN · ESC FOR MATCH LENGTH${again ? " OR EXIT ROOM" : ""}`;
+    const host = this.names.get(this.hostId) ?? "THE HOST";
+    return `WAITING FOR ${host} TO ${again ? "PLAY AGAIN" : "START THE MATCH"} · ${touch ? "PAUSE (‖)" : "ESC"} → EXIT ROOM TO LEAVE`;
   }
 
   /** the game paused / resumed (frames stop while paused: the board is drawn from here, and on news) */
@@ -417,9 +488,11 @@ export class MpClient {
       this.send({ t: "state", p: [+f.x.toFixed(2), +f.y.toFixed(2), +f.z.toFixed(2)], yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), vx: +v.x.toFixed(2), vz: +v.z.toFixed(2), stance: st === "prone" ? 2 : st === "crouch" ? 1 : 0, w: w.cfg.id, r: w.state === "reloading" ? 1 : 0 });
     }
     // HUD: the clock, the scoreboard while Tab is held, name tags
-    const left = Math.max(0, this.endsAt - performance.now());
+    const now = performance.now();
+    const left = Math.max(0, this.endsAt - now);
     this.hud.count = this.scores.length;
-    this.hud.clock(this.results ? 0 : left);
+    this.hud.clock(left, this.phase === "lobby" ? "WAITING ROOM" : this.phase === "countdown" ? "GET READY" : this.phase === "results" ? "MATCH OVER" : "");
+    this.hud.countdown(this.phase === "countdown" ? Math.max(1, Math.ceil((this.startsAt - now) / 1000)) : 0);
     this.refreshBoard();
     this.hud.tags(
       [...this.remotes.values()].filter((r) => r.alive).map((r) => ({ name: this.names.get(r.id) ?? "?", at: r.position.add(new Vector3(0, 1.15, 0)) })),

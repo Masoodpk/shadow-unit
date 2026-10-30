@@ -64,6 +64,14 @@ export class PlayerController {
   /** smoothed 0..~1.5 bob strength (0 when still / airborne / aiming) */
   bobAmt = 0;
   private landSpring = new Spring(160, 16);
+  /**
+   * Step smoothing (as Source does it): the eye's height lags the body's a little while on the ground.
+   * The maps' ramps are voxel staircases (12.5 cm risers), so the body climbs them in small hops several
+   * times a second; the eye glides over them instead of shaking. Off the ground the eye follows exactly.
+   */
+  private viewOfs = 0;
+  private viewOfsV = 0;
+  private lastFeetY = NaN;
   private punchPitch = new Spring(220, 20);
   private punchRoll = new Spring(180, 16);
   /** explosion shake "trauma" 0..1 (felt as trauma², decays) */
@@ -145,6 +153,8 @@ export class PlayerController {
     this.crouched = false;
     this.prone = false;
     this.lean = this.leanOffset = 0;
+    this.viewOfs = this.viewOfsV = 0;
+    this.lastFeetY = NaN;
     this.halfH = PLAYER.standHalfHeight;
     this.eyeH = PLAYER.standEye;
     this.collider.ellipsoid.y = this.halfH;
@@ -558,7 +568,22 @@ export class PlayerController {
       eye = lerp(eye, 0.45, e);
       roll += e * 0.45;
     }
-    const feetY = p.y - this.halfH;
+    const bodyY = p.y - this.halfH;
+    // (stance changes keep the feet planted, so they don't show here; a teleport / respawn snaps)
+    const dy = Number.isNaN(this.lastFeetY) ? 0 : bodyY - this.lastFeetY;
+    this.lastFeetY = bodyY;
+    if (Math.abs(dy) > 0.6 || !this.alive) this.viewOfs = this.viewOfsV = 0;
+    else if (this.grounded) this.viewOfs -= dy;
+    // critically damped (ω 18/s), never more than 30 cm off; in the air it settles quickly
+    const w = this.grounded ? 18 : 30;
+    // (small sub-steps: stable through a long frame)
+    for (let t = dt; t > 1e-6; t -= 1 / 120) {
+      const h = Math.min(t, 1 / 120);
+      this.viewOfsV += (-w * w * this.viewOfs - 2 * w * this.viewOfsV) * h;
+      this.viewOfs += this.viewOfsV * h;
+    }
+    this.viewOfs = clamp(this.viewOfs, -0.3, 0.3);
+    const feetY = bodyY + this.viewOfs;
     const cs = Math.cos(this.yaw);
     const sn = Math.sin(this.yaw);
     // lean: offset along the view's right, clamped so the eye (and every shot from it) never enters a wall
