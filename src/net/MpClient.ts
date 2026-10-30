@@ -12,6 +12,8 @@ import type { Effects } from "../fx/Effects";
 import type { AudioEngine } from "../audio/AudioEngine";
 import type { NavGraph } from "../level/NavGraph";
 import { MpHud, ScoreRow } from "./MpHud";
+import { Spring } from "../core/math";
+import { RAGDOLL } from "../enemies/EnemyConfig";
 
 /**
  * Online deathmatch, the client side (the server is server/server.mjs).
@@ -101,6 +103,14 @@ class RemotePlayer {
   private aimAt = new Vector3();
   private shown = true;
   private reloadT = -1;
+  /** dead: the body falls (the soldiers' Havok ragdoll) and lies there until he's back */
+  private dying = false;
+  /** where the killing shot came from (the body falls away from it) */
+  killFrom: Vector3 | null = null;
+  private lastVel = new Vector3();
+  /** his shots: the muzzle flash on his gun, the kick through his arms */
+  private flashT = 0;
+  private kick = new Spring(300, 22);
 
   constructor(
     readonly id: number,
@@ -112,7 +122,42 @@ class RemotePlayer {
   ) {
     this.parts = buildSoldier(host.scene, host.mats, this, 200 + idx);
     this.skin = host.skins.create(kind, this.parts, 200 + idx);
+    this.slot = 1000 + idx;
     this.show(false);
+  }
+  private slot: number;
+
+  /** he fired: a flash at his muzzle and a kick (returns the muzzle, for the tracer) */
+  fired(): Vector3 | null {
+    if (!this.alive || !this.shown) return null;
+    const f = this.parts.flash;
+    f.setEnabled(true);
+    f.rotation.z = Math.random() * 6.28;
+    this.flashT = 0.05;
+    this.kick.impulse(-3);
+    this.parts.muzzle.computeWorldMatrix(true);
+    return this.parts.muzzle.getAbsolutePosition().clone();
+  }
+
+  /** the body goes down: physics from the pose it's in, pushed away from the shooter */
+  private fall() {
+    this.dying = true;
+    this.parts.flash.setEnabled(false);
+    for (const h of this.parts.hitboxes) h.isPickable = false;
+    let hit = null;
+    if (this.killFrom) {
+      const dir = this.position.subtract(this.killFrom);
+      dir.y = Math.max(0.02, dir.y);
+      dir.normalize();
+      hit = { point: this.position.clone(), impulse: dir.scale(30 * RAGDOLL.bulletPerDamage), part: "torso" as const };
+    }
+    try {
+      this.skin.startRagdoll(this.slot, this.lastVel, hit);
+    } catch {
+      // (no physics: he just goes)
+      this.show(false);
+    }
+    this.killFrom = null;
   }
 
   /** your shot hit this body: the server decides what it does (no kill here — returns false) */
@@ -139,9 +184,22 @@ class RemotePlayer {
     const a = b[0], c = b[1] ?? b[0];
     const k = c.t > a.t ? Math.max(0, Math.min(1, (renderT - a.t) / (c.t - a.t))) : 1;
     const s = k < 1 && a.alive === c.alive ? a : c;
+    const was = this.alive;
     this.alive = s.alive;
-    this.show(s.alive);
-    if (!s.alive) return;
+    if (!s.alive) {
+      // (killed while you watched: he falls and lies there until he respawns; dead when you came in: unseen)
+      if (was && this.shown && !this.dying) this.fall();
+      if (this.dying) this.skin.updateRagdoll(dt);
+      return;
+    }
+    if (this.dying) {
+      // back from the dead (a respawn, somewhere else): the body is his again
+      this.dying = false;
+      this.skin.enterAnim();
+    }
+    this.show(true);
+    for (const h of this.parts.hitboxes) h.isPickable = true;
+    if (this.flashT > 0 && (this.flashT -= dt) <= 0) this.parts.flash.setEnabled(false);
     const x = a.x + (c.x - a.x) * k, y = a.y + (c.y - a.y) * k, z = a.z + (c.z - a.z) * k;
     const yaw = a.yaw + wrap(c.yaw - a.yaw) * k;
     const pitch = a.pitch + (c.pitch - a.pitch) * k;
@@ -153,6 +211,7 @@ class RemotePlayer {
     root.computeWorldMatrix(true);
     // the body plays the mocap from the network state: speed and direction (body-local), stance, aim
     const vx = a.vx + (c.vx - a.vx) * k, vz = a.vz + (c.vz - a.vz) * k;
+    this.lastVel.set(vx, 0, vz);
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
     const i = this.inp;
     i.dt = dt;
@@ -169,6 +228,7 @@ class RemotePlayer {
     this.aimAt.set(x + sy * Math.cos(pitch) * 10, y + 1.45 - Math.sin(pitch) * 10, z + cy * Math.cos(pitch) * 10);
     i.aimAt = this.aimAt;
     i.aimW = i.aim;
+    i.recoil = this.kick.update(dt) * 0.02;
     this.skin.animate(i);
     i.hitPitch *= Math.max(0, 1 - dt * 8);
   }
@@ -396,6 +456,9 @@ export class MpClient {
       }
       case "kill": {
         this.scores = m.scores;
+        // (another player down: his body falls away from whoever shot him)
+        const victim = this.remotes.get(m.to);
+        if (victim && m.by !== m.to) victim.killFrom = m.by === this.me ? this.h.player.camera.globalPosition.clone() : this.remotes.get(m.by)?.position.clone() ?? null;
         const by = m.by === this.me ? "YOU" : this.names.get(m.by) ?? "?";
         const to = m.to === this.me ? "YOU" : this.names.get(m.to) ?? "?";
         const w = (WEAPONS as Record<string, { displayName: string }>)[m.w]?.displayName ?? m.w;
@@ -408,12 +471,16 @@ export class MpClient {
         break;
       }
       case "fire": {
-        // someone else's shot: the sound where he is, a tracer along it
+        // someone else's shot: the flash on his gun and a kick through his arms, the sound where he is,
+        // and a tracer every round from his muzzle along his aim (to the first wall it meets)
         const o = new Vector3(m.o[0], m.o[1], m.o[2]);
-        const d = new Vector3(m.d[0], m.d[1], m.d[2]);
+        const d = new Vector3(m.d[0], m.d[1], m.d[2]).normalize();
         const cfg = (WEAPONS as Record<string, (typeof WEAPONS)[WeaponId]>)[m.w];
-        if (cfg) this.h.audio.play(cfg.sounds.fire, { x: o.x, y: o.y, z: o.z, volume: 0.85, pitchVar: 0.03, reverb: 0.4 });
-        if (Math.random() < 0.5) this.h.fx.tracer(o, o.add(d.scale(cfg?.damage.range ?? 80)));
+        const from = this.remotes.get(m.id)?.fired() ?? o;
+        if (cfg) this.h.audio.play(cfg.sounds.fire, { x: o.x, y: o.y, z: o.z, volume: 0.9, pitchVar: 0.03, reverb: 0.4 });
+        const range = cfg?.damage.range ?? 80;
+        const wall = this.h.nav.rayLevel(o, o.add(d.scale(range)));
+        this.h.fx.tracer(from, o.add(d.scale(wall != null && wall > 0 ? wall : range)));
         break;
       }
       case "end":
@@ -499,7 +566,7 @@ export class MpClient {
       this.h.scene,
       this.h.engine,
     );
-    if (this.deadSince >= 0) this.hud.deadCountdown(Math.max(0, 3 - (performance.now() - this.deadSince) / 1000));
+    if (this.deadSince >= 0) this.hud.deadCountdown(Math.max(0, 4 - (performance.now() - this.deadSince) / 1000));
   }
 }
 

@@ -750,3 +750,17 @@ body.mp-on label.toggle:has(#set-dev) { display: none !important; }
 .mp-pause { display: grid; gap: 12px; margin: 4px 0 18px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #ff6a2b; background: rgba(0,0,0,0.35); max-width: 420px; }
 .mp-pause-state { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; line-height: 1.6; }
 .mp-pause-state b { color: #ff6a2b; }
+
+/* MULTIPLAYER: two columns, so the screen fits without scrolling */
+#mp .mp-wide { max-width: min(1180px, 100%); width: 100%; }
+.mp-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; align-items: start; }
+.mp-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.mp-col .mp-form { margin: 0; }
+.mp-setup { padding: 16px 18px; border: 1px solid rgba(255,255,255,0.12); border-top: 3px solid #ff6a2b; background: rgba(0,0,0,0.28); }
+.mp-setup-h { font-family: var(--mono); font-size: 12px; letter-spacing: 0.22em; color: #ff6a2b; }
+.mp-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mp-btns .primary, .mp-btns .panel-back { grid-column: 1 / -1; }
+.mp-btns .btn { min-width: 0; }
+@media (max-width: 900px) {
+  .mp-cols { grid-template-columns: 1fr; gap: 16px; }
+}

@@ -23,7 +23,7 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 
 ## Online deathmatch, phase 1 (October 30)
 
-Free-for-all in **Black Ledger**, up to 8 players, like Mini Militia: 5-minute matches, die and you're back in 3 s at the spawn point farthest from everyone, kill feed, scoreboard (hold **Tab**), results and the winner, then a new match.
+Free-for-all on Sandstorm, Frostline, the Underground or Black Ledger, up to 8 players, like Mini Militia: the room's host picks the map and the length (5–15 min) and starts the match when everyone's in; die and your body falls (ragdoll) and you're back in 4 s at the spawn point farthest from everyone; kill feed, scoreboard (hold **Tab**, on the death screen, beside the pause menu), results and the winner, until the host plays again.
 
 **Play it with friends (the public site, nothing to run)**
 - Open the Vercel site → **MULTIPLAYER** → type a name → **CREATE ROOM**. Press ESC → **COPY INVITE LINK** and send it (it looks like `https://<site>/?room=ABCD`). Friends who open it land on the MULTIPLAYER screen with the room filled in: type a name, **JOIN ROOM**.

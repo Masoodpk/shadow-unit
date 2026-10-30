@@ -637,6 +637,8 @@ if (invited && !new URLSearchParams(location.search).has("quick")) {
   $("btn-mp-quick").classList.add("hidden");
   $("mp-map-row").classList.add("hidden");
   $("mp-len-row").classList.add("hidden");
+  // (invited: the room's settings are its host's — the NEW ROOM card goes)
+  $("mp-setup").classList.add("hidden");
   pendingInvite = true;
 }
 openMpPanel = openMp;

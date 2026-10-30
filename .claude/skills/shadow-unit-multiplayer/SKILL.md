@@ -27,6 +27,12 @@ Read README.md "Online deathmatch, phase 1" first: it has the how-to-play steps 
 - Hits only count in `playing`; a death outside it respawns without counting. `MP_MATCH_S` overrides every length (tests).
 - Client: ENTER starts for the host (lobby/results); the pause menu (`#mp-pause`, `drawMpPause` via `MpSettings.onRoom`) has START MATCH / PLAY AGAIN and the length chips for the host, the room's state for everyone, and MAIN MENU reads EXIT ROOM. The MULTIPLAYER screen picks map + length for CREATE; JOIN peeks the typed / last room (`/health?room=` → phase, host, players).
 
+## What others see of you
+
+- A remote player killed in view falls as a Havok ragdoll (`RemotePlayer.fall` → `skin.startRagdoll(1000 + idx, …)`, pushed away from the killer via `killFrom` set on the kill message) and lies there until his respawn (server `RESPAWN_MS` 4 s); a live sample brings him back with `skin.enterAnim()`.
+- Each `fire` message: `RemotePlayer.fired()` lights his muzzle flash (`parts.flash`, 50 ms) and kicks his arms (`AnimInput.recoil` from a Spring), plus the sound and a tracer from his muzzle to the first wall (`nav.rayLevel`).
+- Hits: measured 5/5 aimed shots registered at 12 m (26 body / 20 limb with the M4), victim's health matched exactly; damage online has no difficulty scaling, everyone 100 health and the same regen.
+
 ## Maps and lockdown
 
 - A room is on one map (`Room.stage`, server `STAGES`: nightshift, dust2, office, metro — never the Heroes Playground). The creator's pick (MULTIPLAYER screen, `mpStage`) goes in the join; JOIN asks `/health?room=` for the room's map first. If a join still arrives on the wrong map, the server answers `{t:"stage"}` and the client reloads onto it (`session.mpAuto` → `startMp`). Quick play only matches rooms on the same map.

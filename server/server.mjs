@@ -26,7 +26,8 @@ const COUNTDOWN_MS = 4000;
 /** quick play (strangers, no host to wait for): starts this long after a second player comes in, and again after the results */
 const AUTO_START_MS = 15 * 1000;
 const RESULTS_MS = 12 * 1000;
-const RESPAWN_MS = 3000;
+/** back in after a death (the body lies where it fell until then) */
+const RESPAWN_MS = 4000;
 const MAX_PLAYERS = 8;
 const MAX_HP = 100;
 /** the biggest single hit any weapon can do (a rocket's direct hit, a knife in the head); claims above are refused */
