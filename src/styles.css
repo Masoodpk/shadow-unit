@@ -747,10 +747,18 @@ body.mp-on #set-dev, body.mp-on .dev-switches { display: none !important; }
 body.mp-on label.toggle:has(#set-dev) { display: none !important; }
 
 /* the pause menu, online: the room and the host's controls */
-.mp-pause { display: grid; gap: 12px; margin: 4px 0 18px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #ff6a2b; background: rgba(0,0,0,0.35); max-width: 420px; }
+/* the pause screen: the menu, and online a second column (the room's panel and the scoreboard). Nothing
+   overlaps: the columns wrap under each other on a narrow screen and the screen scrolls when it's tall */
+.pause-cols { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px 4vw; width: 100%; }
+.pause-cols > .menu-inner { flex: none; }
+.mp-pause-col { flex: 1 1 340px; min-width: 0; max-width: 1000px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 20px; align-items: start; }
+body.mp-on #pause { overflow-y: auto; align-items: flex-start; padding-block: max(5vh, 24px); padding-inline: max(4vw, 16px); }
+/* (while paused online the game's HUD and the match HUD go: the menu is all there is) */
+body.mp-paused #hud, body.mp-paused #mp-hud { visibility: hidden; }
+.mp-pause { display: grid; gap: 12px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #ff6a2b; background: rgba(0,0,0,0.35); min-width: 0; }
+.mp-pause-board:empty { display: none; }
 .mp-pause-state { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; line-height: 1.6; }
 .mp-pause-state b { color: #ff6a2b; }
-.mp-pause.wide { max-width: 560px; }
 /* the host's team picker */
 .mp-teams-ed { display: grid; gap: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; }
 .ted-h { font-size: 11px; letter-spacing: 0.2em; color: #ff6a2b; }

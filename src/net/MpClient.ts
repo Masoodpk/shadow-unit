@@ -689,6 +689,7 @@ export class MpClient {
   /** the game paused / resumed (frames stop while paused: the board is drawn from here, and on news) */
   setPaused(on: boolean) {
     this.paused = on;
+    document.body.classList.toggle("mp-paused", on);
     this.refreshBoard();
   }
 

@@ -760,7 +760,6 @@ $("btn-mp-team").addEventListener("click", () => game?.mpSwitchTeam());
 function drawTeamPicker(r: import("./net/MpClient").RoomState, hostCtl: boolean) {
   const on = r.mode === "tdm" && !r.open;
   $("mp-teams-ed").classList.toggle("hidden", !on);
-  $("mp-pause").classList.toggle("wide", on);
   if (!on) return;
   const loose = r.list.filter((p) => p.team < 0).length;
   $("mp-teams-hint").textContent = hostCtl
@@ -840,6 +839,7 @@ function startMp(room: string, onStage: StageId = mpStage) {
   store.set("mpUrl", url === mpDefaultUrl() ? "" : url);
   mpSettings = { url, room, name, stage: onStage, onOtherStage: mpOtherStage, mins: mpMins, mode: mpMode, onRoom: drawMpPause };
   $("mp-pause").classList.remove("hidden");
+  $("mp-pause-col").classList.remove("hidden");
   $("btn-mainmenu-p").textContent = "EXIT ROOM";
   // (online: no developer mode — its switches go, and it's off)
   document.body.classList.add("mp-on");
@@ -1300,6 +1300,7 @@ if (quick && !session.get("mpAuto")) {
     mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV", stage, onOtherStage: mpOtherStage, mins: mpMins, mode: q.get("mode") === "tdm" ? "tdm" : mpMode, onRoom: drawMpPause };
     document.body.classList.add("mp-on");
     $("mp-pause").classList.remove("hidden");
+    $("mp-pause-col").classList.remove("hidden");
     $("btn-invite-p").classList.remove("hidden");
     $("btn-restart-p").classList.add("hidden");
     $("btn-mainmenu-p").textContent = "EXIT ROOM";

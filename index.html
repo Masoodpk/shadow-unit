@@ -287,36 +287,44 @@
     </div>
 
     <div id="pause" class="screen hidden">
-      <div class="menu-inner">
-        <div class="brand-kicker">PAUSED</div>
-        <h2>PAUSED</h2>
-        <!-- online: the room's state, and the host's controls (START / PLAY AGAIN, match length) -->
-        <div id="mp-pause" class="mp-pause hidden">
-          <div id="mp-pause-state" class="mp-pause-state"></div>
-          <div id="mp-pause-mode-row" class="mp-map-row">MODE <div id="mp-pause-mode" class="mp-maps"></div></div>
-          <div id="mp-pause-len-row" class="mp-map-row">MATCH LENGTH <div id="mp-pause-len" class="mp-maps"></div></div>
-          <!-- team deathmatch in a friends' room: the host puts each player on a side and names the sides -->
-          <div id="mp-teams-ed" class="mp-teams-ed hidden">
-            <div class="ted-h">TEAMS <span id="mp-teams-hint"></span></div>
-            <div class="ted-cols">
-              <div class="ted-col t0"><input id="mp-tname-0" class="ted-name" type="text" maxlength="14" spellcheck="false" aria-label="First team's name" /><div id="mp-tlist-0" class="ted-list"></div></div>
-              <div class="ted-col t1"><input id="mp-tname-1" class="ted-name" type="text" maxlength="14" spellcheck="false" aria-label="Second team's name" /><div id="mp-tlist-1" class="ted-list"></div></div>
-            </div>
-            <div id="mp-tnone" class="ted-none"><div class="ted-sub">NO TEAM YET</div><div id="mp-tlist-x" class="ted-list"></div></div>
-          </div>
-          <button id="btn-mp-team" class="btn hidden">SWITCH TEAM</button>
-          <button id="btn-mp-start" class="btn primary">START MATCH</button>
+      <!-- two columns online: the menu on the left; the room (state, host's controls, teams) and its
+           scoreboard on the right, side by side when there's room, stacked (and scrolling) when not -->
+      <div class="pause-cols">
+        <div class="menu-inner">
+          <div class="brand-kicker">PAUSED</div>
+          <h2>PAUSED</h2>
+          <nav class="menu-buttons">
+            <button id="btn-resume" class="btn primary">RESUME</button>
+            <button id="btn-settings-p" class="btn">SETTINGS</button>
+            <button id="btn-controls-p" class="btn">CONTROLS</button>
+            <button id="btn-restart-p" class="btn">RESTART</button>
+            <button id="btn-mainmenu-p" class="btn">MAIN MENU</button>
+            <button id="btn-fullscreen-p" class="btn fs-btn">FULL SCREEN</button>
+            <button id="btn-invite-p" class="btn hidden">COPY INVITE LINK</button>
+          </nav>
+          <div id="resume-note" class="note"></div>
         </div>
-        <nav class="menu-buttons">
-          <button id="btn-resume" class="btn primary">RESUME</button>
-          <button id="btn-settings-p" class="btn">SETTINGS</button>
-          <button id="btn-controls-p" class="btn">CONTROLS</button>
-          <button id="btn-restart-p" class="btn">RESTART</button>
-          <button id="btn-mainmenu-p" class="btn">MAIN MENU</button>
-          <button id="btn-fullscreen-p" class="btn fs-btn">FULL SCREEN</button>
-          <button id="btn-invite-p" class="btn hidden">COPY INVITE LINK</button>
-        </nav>
-        <div id="resume-note" class="note"></div>
+        <div id="mp-pause-col" class="mp-pause-col hidden">
+          <!-- online: the room's state, and the host's controls (START / PLAY AGAIN, match length) -->
+          <div id="mp-pause" class="mp-pause hidden">
+            <div id="mp-pause-state" class="mp-pause-state"></div>
+            <div id="mp-pause-mode-row" class="mp-map-row">MODE <div id="mp-pause-mode" class="mp-maps"></div></div>
+            <div id="mp-pause-len-row" class="mp-map-row">MATCH LENGTH <div id="mp-pause-len" class="mp-maps"></div></div>
+            <!-- team deathmatch in a friends' room: the host puts each player on a side and names the sides -->
+            <div id="mp-teams-ed" class="mp-teams-ed hidden">
+              <div class="ted-h">TEAMS <span id="mp-teams-hint"></span></div>
+              <div class="ted-cols">
+                <div class="ted-col t0"><input id="mp-tname-0" class="ted-name" type="text" maxlength="14" spellcheck="false" aria-label="First team's name" /><div id="mp-tlist-0" class="ted-list"></div></div>
+                <div class="ted-col t1"><input id="mp-tname-1" class="ted-name" type="text" maxlength="14" spellcheck="false" aria-label="Second team's name" /><div id="mp-tlist-1" class="ted-list"></div></div>
+              </div>
+              <div id="mp-tnone" class="ted-none"><div class="ted-sub">NO TEAM YET</div><div id="mp-tlist-x" class="ted-list"></div></div>
+            </div>
+            <button id="btn-mp-team" class="btn hidden">SWITCH TEAM</button>
+            <button id="btn-mp-start" class="btn primary">START MATCH</button>
+          </div>
+          <!-- the scoreboard sits here while paused (MpHud moves it in) -->
+          <div id="mp-pause-board" class="mp-pause-board"></div>
+        </div>
       </div>
     </div>
 
