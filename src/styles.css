@@ -750,6 +750,30 @@ body.mp-on label.toggle:has(#set-dev) { display: none !important; }
 .mp-pause { display: grid; gap: 12px; margin: 4px 0 18px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-left: 3px solid #ff6a2b; background: rgba(0,0,0,0.35); max-width: 420px; }
 .mp-pause-state { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; line-height: 1.6; }
 .mp-pause-state b { color: #ff6a2b; }
+.mp-pause.wide { max-width: 560px; }
+/* the host's team picker */
+.mp-teams-ed { display: grid; gap: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; }
+.ted-h { font-size: 11px; letter-spacing: 0.2em; color: #ff6a2b; }
+.ted-h span { color: rgba(232,226,214,0.6); letter-spacing: 0.08em; margin-left: 8px; }
+.ted-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ted-col { display: grid; gap: 6px; align-content: start; padding: 8px; background: rgba(0,0,0,0.3); border-top: 3px solid #4fa8ff; min-height: 90px; }
+.ted-col.t1 { border-top-color: #ff4a3d; }
+.ted-name { font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #e8edf2; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); padding: 6px 8px; width: 100%; box-sizing: border-box; }
+.ted-name:focus { outline: none; border-color: #ff6a2b; }
+.ted-name:disabled { background: transparent; border-color: transparent; padding-left: 0; }
+.ted-list { display: grid; gap: 4px; }
+.ted-p { display: flex; align-items: center; gap: 6px; padding: 5px 6px; background: rgba(255,255,255,0.06); min-height: 26px; }
+.ted-p .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ted-p small { font-size: 9px; padding: 1px 4px; background: rgba(255,255,255,0.14); }
+.ted-p small.you { background: #ff6a2b; color: #111; font-weight: 700; }
+.ted-p button { font: inherit; font-size: 10px; letter-spacing: 0.08em; color: #e8edf2; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.25); padding: 4px 7px; cursor: pointer; white-space: nowrap; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.ted-p button:hover { border-color: #ff6a2b; }
+.ted-p button.to0 { border-color: rgba(79,168,255,0.7); }
+.ted-p button.to1 { border-color: rgba(255,74,61,0.7); }
+.ted-empty { opacity: 0.45; font-size: 10px; padding: 4px 2px; }
+.ted-none { display: grid; gap: 6px; padding: 8px; border: 1px dashed rgba(255,255,255,0.25); }
+.ted-sub { font-size: 10px; letter-spacing: 0.18em; color: rgba(232,226,214,0.7); }
+@media (max-width: 520px) { .ted-cols { grid-template-columns: 1fr; } }
 
 /* MULTIPLAYER: two columns, so the screen fits without scrolling */
 #mp .mp-wide { max-width: min(1180px, 100%); width: 100%; }

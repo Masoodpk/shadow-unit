@@ -591,6 +591,36 @@ export class WeaponManager {
     return best ? best.clone() : null;
   }
 
+  /**
+   * Online: the trigger of a gun pulled with a foe at arm's length swings the gun at him instead (rifle
+   * butt / pistol whip), again and again while it's held — up close you can't miss and can't be missed,
+   * the way Mini Militia and Call of Duty play it. Off (the game sets it) in single player.
+   */
+  autoMelee = false;
+  /** a foe is at arm's length with the trigger held (online): the gun swings, it doesn't fire */
+  private meleeLock = false;
+  private foeInReach() {
+    const w = this.weapon;
+    if (w.cfg.knife || w.isGrenade || w.state !== "ready") return false;
+    const eye = this.player.camera.position;
+    // (cheap first: anyone that close at all)
+    const near = this.lungeTargets?.().some((p) => Math.hypot(p.x - eye.x, p.z - eye.z) < MELEE.range + 0.4 && Math.abs(p.y + 0.4 - eye.y) < 1.6);
+    if (!near) return false;
+    // then the blow's own aim: a foe's body in front, nothing of the level first
+    this.viewBasis();
+    for (const pv of [0, -0.2]) {
+      for (const yv of [0, -0.25, 0.25]) {
+        const d = this.dir.copyFrom(this.fwd).addInPlace(this.tmp.copyFrom(this.right).scaleInPlace(Math.tan(yv))).addInPlace(this.tmp.copyFrom(this.up).scaleInPlace(Math.tan(pv))).normalize();
+        this.ray.origin.copyFrom(eye);
+        this.ray.direction.copyFrom(d);
+        this.ray.length = MELEE.range;
+        const hit = this.scene.pickWithRay(this.ray, this.bulletPredicate as never, false);
+        if ((hit?.pickedMesh?.metadata as { kind?: number } | undefined)?.kind === HitKind.EnemyPart) return true;
+      }
+    }
+    return false;
+  }
+
   private startMelee() {
     const w = this.weapon;
     if (w.cfg.knife) {
@@ -689,6 +719,9 @@ export class WeaponManager {
     const inp = this.input;
     const alive = this.player.alive;
     if (alive && inp.hit("melee")) this.startMelee();
+    // (mid-swing and its cooldown: the lock holds as it was — no rays every frame)
+    this.meleeLock = this.autoMelee && alive && inp.fireHeld && (this.meleeT >= 0 || this.meleeCd > 0 ? this.meleeLock : this.foeInReach());
+    if (this.meleeLock) this.startMelee();
     if (alive && inp.hit("inspect")) this.startInspect();
     this.updateInspect(dt);
     if (alive && inp.hit("knife")) this.startQuickKnife();
@@ -782,8 +815,8 @@ export class WeaponManager {
     // (a quick knife throw is held ready by its own key)
     const knifeHeld = !!this.knifeThrow && w.isGrenade && inp.held("throwKnife");
     const shots = w.update(dt, {
-      triggerHeld: alive && this.meleeT < 0 && (inp.fireHeld || knifeHeld) && !(this.player.sprinting && !w.isGrenade),
-      triggerPressed: alive && this.meleeT < 0 && inp.firePressed,
+      triggerHeld: alive && this.meleeT < 0 && !this.meleeLock && (inp.fireHeld || knifeHeld) && !(this.player.sprinting && !w.isGrenade),
+      triggerPressed: alive && this.meleeT < 0 && !this.meleeLock && inp.firePressed,
       pressAge: alive ? pressAge : 99,
       pressId: inp.firePressTime,
       reloadPressed: alive && inp.hit("reload"),

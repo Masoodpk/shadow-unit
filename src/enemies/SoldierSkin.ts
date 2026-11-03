@@ -483,6 +483,8 @@ export interface AnimInput {
   recoil: number;
   /** 0 the rifle … 1 the sidearm drawn, two hands on it (a soldier who carries one: the boss) */
   pistol?: number;
+  /** sliding (a player online): seconds since the slide began, or -1 / missing */
+  slide?: number;
 }
 
 type DriverKey = "hips" | "spine" | "neck" | "shoulderL" | "shoulderR" | "elbowL" | "elbowR" | "hipL" | "hipR" | "kneeL" | "kneeR";
@@ -613,7 +615,9 @@ export class SoldierSkin {
     this.layer = new PoseBuffer(animNodes.length);
     const clav = this.b.Lup.parent as TransformNode;
     const leftArm = new Float32Array(animNodes.map((n) => (n === clav || n.isDescendantOf(clav) ? 1 : 0)));
-    this.ctrl = new EnemyAnimationController(anim.clips, this.upperMask, leftArm);
+    const clavR = this.b.Rup.parent as TransformNode;
+    const arms = new Float32Array(animNodes.map((n) => (n === clav || n.isDescendantOf(clav) || n === clavR || n.isDescendantOf(clavR) ? 1 : 0)));
+    this.ctrl = new EnemyAnimationController(anim.clips, this.upperMask, leftArm, arms);
 
     // ---- one draw call per material
     const skel = e.skeletons[0];

@@ -983,6 +983,21 @@ export class Game {
   mpSetMins(mins: number) {
     this.mp?.setMins(mins);
   }
+  /** online, the host: free-for-all or team deathmatch (between matches) */
+  mpSetMode(mode: "ffa" | "tdm") {
+    this.mp?.setMode(mode);
+  }
+  /** online, quick play's team match: over to the other side (between matches) */
+  mpSwitchTeam() {
+    this.mp?.switchTeam();
+  }
+  /** online, the host of a friends' team room: put a player on a side (0 / 1, -1 none), name a side */
+  mpAssignTeam(id: number, team: number) {
+    this.mp?.assignTeam(id, team);
+  }
+  mpSetTeamName(team: number, name: string) {
+    this.mp?.setTeamName(team, name);
+  }
   get mpRoomState() {
     return this.mp?.room ?? null;
   }
@@ -1860,8 +1875,12 @@ export class Game {
         scene: this.scene, engine: this.engine, mats: this.mats, skins: this.skins, player: this.player, weapons: this.weapons,
         fx: this.fx, audio: this.audio, nav: this.level.nav, playerSpawn: this.level.playerSpawn.pos,
       });
-      const o = document.getElementById("obj-text");
-      if (o) o.textContent = "DEATHMATCH · MOST KILLS WINS";
+      const mp = this.mp;
+      // teammates on the radar and the map (foes on neither); the knife lunges and the gun swings at foes
+      const marks = this.minimap.marks;
+      this.minimap.marks = () => [...(marks?.() ?? []), ...mp.radarMarks()];
+      this.weapons.lungeTargets = () => mp.foePositions();
+      this.weapons.autoMelee = true;
       // (no garrison to count)
       const hc = document.getElementById("hostiles");
       if (hc) hc.style.display = "none";

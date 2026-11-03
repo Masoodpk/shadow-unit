@@ -173,7 +173,7 @@
       <div class="menu-inner mp-wide">
         <div class="brand-kicker">ONLINE // DEATHMATCH</div>
         <h2>MULTIPLAYER</h2>
-        <div class="brand-sub">Up to 8 players, everyone against everyone. Create a room, send friends the link, and start when everyone's in — the most kills wins.</div>
+        <div class="brand-sub">Up to 8 players: everyone against everyone, or two teams. Create a room, send friends the link, and start when everyone's in — the most kills wins.</div>
         <!-- two columns, so the screen fits without scrolling: you and the room on the left, a new room's settings on the right -->
         <div class="mp-cols">
           <div class="mp-col">
@@ -194,9 +194,10 @@
           </div>
           <div id="mp-setup" class="mp-col mp-setup">
             <div class="mp-setup-h">NEW ROOM</div>
+            <div id="mp-mode-row" class="mp-map-row">MODE <div id="mp-modes" class="mp-maps"></div></div>
             <div id="mp-map-row" class="mp-map-row">MAP <div id="mp-maps" class="mp-maps"></div></div>
             <div id="mp-len-row" class="mp-map-row">MATCH LENGTH <div id="mp-lens" class="mp-maps"></div></div>
-            <div class="note">CREATE ROOM makes a room with these settings and you as its host: send friends the invite link (pause menu → COPY INVITE LINK) or the 4-letter code, then start the match when everyone's in. QUICK PLAY puts you with anyone on the same map.</div>
+            <div class="note">CREATE ROOM makes a room with these settings and you as its host: send friends the invite link (pause menu → COPY INVITE LINK) or the 4-letter code, then start the match when everyone's in. QUICK PLAY puts you with anyone on the same map and mode. TEAM DEATHMATCH splits the room into two teams: your team is blue, on your radar and over their heads; the enemy is red.</div>
             <a id="mp-advanced" class="mp-advanced" href="#">ADVANCED: SERVER ADDRESS</a>
           </div>
         </div>
@@ -292,7 +293,18 @@
         <!-- online: the room's state, and the host's controls (START / PLAY AGAIN, match length) -->
         <div id="mp-pause" class="mp-pause hidden">
           <div id="mp-pause-state" class="mp-pause-state"></div>
+          <div id="mp-pause-mode-row" class="mp-map-row">MODE <div id="mp-pause-mode" class="mp-maps"></div></div>
           <div id="mp-pause-len-row" class="mp-map-row">MATCH LENGTH <div id="mp-pause-len" class="mp-maps"></div></div>
+          <!-- team deathmatch in a friends' room: the host puts each player on a side and names the sides -->
+          <div id="mp-teams-ed" class="mp-teams-ed hidden">
+            <div class="ted-h">TEAMS <span id="mp-teams-hint"></span></div>
+            <div class="ted-cols">
+              <div class="ted-col t0"><input id="mp-tname-0" class="ted-name" type="text" maxlength="14" spellcheck="false" aria-label="First team's name" /><div id="mp-tlist-0" class="ted-list"></div></div>
+              <div class="ted-col t1"><input id="mp-tname-1" class="ted-name" type="text" maxlength="14" spellcheck="false" aria-label="Second team's name" /><div id="mp-tlist-1" class="ted-list"></div></div>
+            </div>
+            <div id="mp-tnone" class="ted-none"><div class="ted-sub">NO TEAM YET</div><div id="mp-tlist-x" class="ted-list"></div></div>
+          </div>
+          <button id="btn-mp-team" class="btn hidden">SWITCH TEAM</button>
           <button id="btn-mp-start" class="btn primary">START MATCH</button>
         </div>
         <nav class="menu-buttons">

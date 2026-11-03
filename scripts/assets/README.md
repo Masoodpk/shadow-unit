@@ -22,6 +22,7 @@ The other commands used for the current assets:
 `voxel-map.mjs` for Dust 2: `--u=1.4773 --mode=all --ceil=4`.
 | `prep-props.mjs` | Sandstorm props: handcuffs (308k → 4.6k triangles), locker (1024² WebP), barricade boxes (the six-crate heap split into upright crates; 512² WebP), Betamax tape (1024² WebP, flat, 15.6 cm), Commodore 64 set (cables/plugs/power brick dropped, 1024² WebP, real size). Pass `-` to skip a model | `node prep-props.mjs <handcuffs.glb or -> <locker.glb or -> ../../src/assets/props ~/Downloads/military_wooden_box.glb "~/Downloads/ration_cardboard_box (1).glb" ~/Downloads/sony_betamax_video_tape.glb ~/Downloads/commodore_64__computer_full_pack.glb` |
 | `fbx-anim.mjs` | a Mixamo FBX animation → per-frame bone directions (needs `three@0.169.0`, no-save) | `node fbx-anim.mjs "~/Downloads/Sit To Stand.fbx" ../../src/assets/anims/sit-to-stand.json` |
+| `fbx-soldier-clip.mjs` | a Mixamo FBX animation → a soldier clip (`soldier_anims.json`, the FSB and Mark rigs' local rotations; in place, hip height scaled). The other soldiers get it by retargeting at load. Add the key to `ClipKey` and play it from `EnemyAnimationController` (needs `three@0.169.0 @gltf-transform/core@4 @gltf-transform/extensions@4`, no-save) | `node fbx-soldier-clip.mjs "~/Downloads/Running Slide.fbx" slide` |
 
 (Install all the no-save tools in one `npm i --no-save …` command: npm removes earlier no-save packages on every install.)
 

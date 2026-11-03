@@ -21,7 +21,9 @@ export type ClipKey =
   | "crouchBack" | "crouchR" | "crouchL" | "kneel" | "hit"
   | "stepR" | "stepL" | "roll" | "stop" | "whip" | "stab" | "throw"
   | "backWalk" | "backLow" | "walkBR" | "walkBL" | "runBR" | "runBL"
-  | "deathR" | "deathF" | "deathB";
+  | "deathR" | "deathF" | "deathB"
+  /** the running slide (Mixamo, in place): a player online sliding on his hip, rifle up */
+  | "slide";
 
 export interface Clip {
   n: number;

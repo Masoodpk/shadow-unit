@@ -17,6 +17,10 @@ description: Soldier bodies in the Shadow Unit FPS — skinned characters, mocap
 
 They have: low-ready idle; aim stance; walking in eight directions; run; sprint (forward and back); backpedal; strafe; crouched moves; kneel; reload; hit flinch; side-steps; a grenade-dodge roll; stop; rifle-butt and stab melee; grenade throw; lean/peek from cover; covering their eyes from flashbangs; the boss's sidearm; three death clips plus ragdoll; burning and freezing reactions.
 
+Players online also have the **slide** (`ClipKey` "slide", from Mixamo's Running Slide via `scripts/assets/fbx-soldier-clip.mjs`). `AnimInput.slide` is the seconds since it began (-1 none). The controller takes the hips and legs from the clip, brings the chest 60 % back towards the shooting stance (`SLIDE_UPRIGHT`), and keeps both arms (the `arms` mask) on the rifle, so the procedural aim points the muzzle at the target (measured within 3.5°). The AI never slides.
+
+A new Mixamo clip: `node scripts/assets/fbx-soldier-clip.mjs "<file.fbx>" <key>` writes it for fsb and mark (retargeted bone by bone in the body frame, in place). Add the key to `ClipKey` and play it from the controller. Check it on the line-up page with `S.inp.<input>` and measure bones (`S.list[i].skin.b.head` …) rather than trusting a screenshot's perspective.
+
 Not yet (these need new clips; ask the user before adding): vault/climb, wounded/downed crawl or limp, per-limb hit reactions, staggering from blasts while alive, idle variety, turning on the spot with steps, prone, blind-fire, surrender, throwing a grenade back.
 
 A new clip needs adding to `ClipKey`, `soldier_anims.json` (from FBX via `scripts/assets/fbx-anim.mjs`) and the controller. Retargeting picks it up for the other rigs automatically.

@@ -1,6 +1,9 @@
 // SHADOW UNIT — online deathmatch server (phase 1).
 //
-// One Node process, many rooms of up to 8. Free-for-all: the room's creator (the host) starts the match
+// One Node process, many rooms of up to 8. Two modes: free-for-all (everyone against everyone) and team
+// deathmatch (two teams; no friendly fire; the team with the most kills wins). In a friends' room the
+// host makes the teams: everyone comes in without one, and the host puts each player on a side and names
+// the sides. Quick play (strangers, no host) balances them by itself. The room's creator (the host) starts the match
 // when everyone's in, at the length he picked (5–15 minutes), so everyone gets the same time; respawn 3 s
 // after a death at the spawn point farthest from everyone else; kills / deaths; the results stay up until
 // the host plays again. Quick-play rooms (strangers) start and restart by themselves.
@@ -40,6 +43,21 @@ const KINDS = ["swat", "fsb", "mark"];
 /** the maps a room can be on (every stage but the Heroes Playground); a room keeps the one it was made with */
 const STAGES = ["nightshift", "dust2", "office", "metro"];
 const asStage = (s) => (STAGES.includes(s) ? s : STAGES[0]);
+/** "ffa": everyone against everyone; "tdm": two teams */
+const MODES = ["ffa", "tdm"];
+const asMode = (m) => (MODES.includes(m) ? m : "ffa");
+/** team deathmatch: each team wears its own uniform, so a glance tells friend from foe */
+const TEAM_KINDS = ["swat", "fsb"];
+/** kills this close together are a multi-kill (double, triple…) */
+const MULTI_MS = 4500;
+/** damage dealt this recently to someone who then dies by another hand is an assist */
+const ASSIST_MS = 8000;
+/** a kill from this far (m) is a long shot */
+const LONGSHOT_M = 35;
+/** the rewards' points (the pop-up's "+150"); kills still decide the winner */
+const POINTS = { kill: 100, HEADSHOT: 50, "FIRST BLOOD": 50, "DOUBLE KILL": 50, "TRIPLE KILL": 100, "QUAD KILL": 150, "MEGA KILL": 200, "KILLING SPREE": 100, RAMPAGE: 150, DOMINATING: 200, UNSTOPPABLE: 250, GODLIKE: 300, REVENGE: 50, SHUTDOWN: 100, LONGSHOT: 50, "MELEE KILL": 50, "POINT BLANK": 25, ASSIST: 50 };
+const STREAKS = { 3: "KILLING SPREE", 5: "RAMPAGE", 7: "DOMINATING", 10: "UNSTOPPABLE", 15: "GODLIKE" };
+const MULTIS = ["", "", "DOUBLE KILL", "TRIPLE KILL", "QUAD KILL"];
 /** health comes back as in single player: after 5 s without a hit, 4 a second */
 const REGEN_DELAY_MS = 5000, REGEN_PER_S = 4;
 
@@ -59,9 +77,14 @@ const code = () => Array.from({ length: 4 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ"[(M
 // → "results" (scores stay up until the host starts again, or people leave). Quick-play rooms have
 // no host to wait for: they start by themselves.
 class Room {
-  constructor(id, open, stage, mins) {
+  constructor(id, open, stage, mins, mode) {
     this.id = id;
     this.stage = stage;
+    this.mode = asMode(mode);
+    /** the two sides' names (the host's to change in a friends' room) */
+    this.teamNames = ["ALPHA", "BRAVO"];
+    /** nobody has scored yet this match (the first kill is FIRST BLOOD) */
+    this.blooded = false;
     /** strangers can be put here by quick play */
     this.open = open;
     this.mins = LENGTHS.includes(mins) ? mins : 5;
@@ -81,6 +104,8 @@ class Room {
       host: this.host,
       phase: this.phase,
       mins: this.mins,
+      mode: this.mode,
+      teamNames: this.teamNames,
       open: this.open,
       startsIn: this.phase === "countdown" ? this.startsAt - t : 0,
       endsIn: this.phase === "playing" ? this.endsAt - t : 0,
@@ -90,11 +115,22 @@ class Room {
   /** START (the host, or quick play's timer): scores to zero, everyone respawned apart, the countdown */
   start() {
     if (this.phase !== "lobby" && this.phase !== "results") return;
+    // (a friends' team match: the host must have put everyone on a side first)
+    const loose = this.mode === "tdm" ? [...this.players.values()].filter((o) => o.team < 0) : [];
+    if (loose.length && !this.open) {
+      const h = this.players.get(this.host);
+      if (h) send(h.ws, { t: "noStart", names: loose.map((o) => o.name) });
+      return;
+    }
     this.phase = "countdown";
     this.startsAt = now() + COUNTDOWN_MS;
     this.autoAt = 0;
+    // (quick play: strangers' teams evened out; friends keep the sides they picked)
+    if (this.mode === "tdm" && this.open) this.balance();
+    this.blooded = false;
     for (const p of this.players.values()) {
-      p.k = p.d = 0;
+      p.k = p.d = p.pts = p.streak = p.multi = 0;
+      p.lastKiller = 0;
       p.alive = false;
     }
     for (const p of this.players.values()) this.spawn(p);
@@ -105,12 +141,75 @@ class Room {
     const s = JSON.stringify(msg);
     for (const p of this.players.values()) if (p !== except && p.ws.readyState === 1) p.ws.send(s);
   }
-  /** the spawn point farthest from the living */
+  /** are these two on the same side (team deathmatch only — in free-for-all everyone's a foe) */
+  mates(a, b) {
+    return this.mode === "tdm" && a.team >= 0 && a.team === b.team;
+  }
+  /** the team with fewer players (the lower score on a tie) */
+  smallerTeam(except) {
+    const n = [0, 0];
+    for (const o of this.players.values()) if (o !== except && o.team >= 0) n[o.team]++;
+    if (n[0] !== n[1]) return n[0] < n[1] ? 0 : 1;
+    const [a, b] = this.teamKills();
+    return a <= b ? 0 : 1;
+  }
+  teamKills() {
+    const t = [0, 0];
+    for (const o of this.players.values()) if (o.team >= 0) t[o.team] += o.k;
+    return t;
+  }
+  /** a player onto a side (team deathmatch), in that side's uniform; -1 / free-for-all: no side, his own uniform */
+  setTeam(p, team) {
+    p.team = this.mode === "tdm" && (team === 0 || team === 1) ? team : -1;
+    p.kind = p.team >= 0 ? TEAM_KINDS[p.team] : p.ffaKind;
+  }
+  /**
+   * The side a player gets on coming in. Quick play: the smaller one. A friends' team room between
+   * matches: none — the host puts him on one; mid-match (no host to wait for): the smaller one.
+   */
+  joinTeam(p, old) {
+    if (this.mode !== "tdm") return -1;
+    if (old && old.room === this && old.team >= 0) return old.team;
+    if (!this.open && (this.phase === "lobby" || this.phase === "results")) return -1;
+    return this.smallerTeam(p);
+  }
+  /** teams evened to within one (the newest in move first) */
+  balance() {
+    const list = [...this.players.values()];
+    for (;;) {
+      const n = [0, 1].map((t) => list.filter((o) => o.team === t).length);
+      if (Math.abs(n[0] - n[1]) <= 1) break;
+      const big = n[0] > n[1] ? 0 : 1;
+      const mover = list.filter((o) => o.team === big).pop();
+      this.setTeam(mover, 1 - big);
+    }
+  }
+  /** the mode changed (the host, between matches): off the sides — the host deals them out again */
+  setMode(mode) {
+    this.mode = asMode(mode);
+    let i = 0;
+    for (const p of this.players.values()) this.setTeam(p, this.open ? i++ % 2 : -1);
+    this.broadcast(this.roster());
+    this.broadcast(this.info());
+  }
+  /** who's who: names, uniforms, sides (on joining and whenever a side or the mode changes) */
+  roster() {
+    return { t: "roster", mode: this.mode, players: [...this.players.values()].map((o) => ({ id: o.id, name: o.name, kind: o.kind, team: o.team, k: o.k, d: o.d })) };
+  }
+  /** the spawn point farthest from the living foes (team deathmatch: and not far from your own side) */
   spawn(p) {
-    let best = this.spawns[0] ?? [0, 0, 0, 0], bd = -1;
+    let best = this.spawns[0] ?? [0, 0, 0, 0], bd = -Infinity;
     for (const s of this.spawns) {
-      let d = Infinity;
-      for (const o of this.players.values()) if (o !== p && o.alive) d = Math.min(d, Math.hypot(o.x - s[0], o.z - s[2]));
+      let d = Infinity, mate = Infinity;
+      for (const o of this.players.values()) {
+        if (o === p || !o.alive) continue;
+        const r = Math.hypot(o.x - s[0], o.z - s[2]);
+        if (this.mates(p, o)) mate = Math.min(mate, r);
+        else d = Math.min(d, r);
+      }
+      // (nobody to keep away from: anywhere will do)
+      if (d === Infinity) d = 100;
+      if (mate !== Infinity) d -= 0.3 * Math.min(mate, 40);
       d *= 0.85 + Math.random() * 0.3;
       if (d > bd) (bd = d), (best = s);
     }
@@ -118,7 +217,7 @@ class Room {
     send(p.ws, { t: "spawn", p: [best[0], best[1], best[2]], yaw: best[3] });
   }
   scores() {
-    return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, k: p.k, d: p.d })).sort((a, b) => b.k - a.k || a.d - b.d);
+    return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, k: p.k, d: p.d, team: p.team, pts: p.pts })).sort((a, b) => b.k - a.k || a.d - b.d);
   }
   tick() {
     const t = now();
@@ -130,7 +229,7 @@ class Room {
       this.phase = "results";
       // (quick play goes again by itself; a friends' room waits for its host)
       this.autoAt = this.open ? t + RESULTS_MS : 0;
-      this.broadcast({ t: "end", scores: this.scores() });
+      this.broadcast({ t: "end", scores: this.scores(), mode: this.mode, teams: this.mode === "tdm" ? this.teamKills() : null });
       this.broadcast(this.info());
     } else if (this.autoAt && t >= this.autoAt) this.start();
     if (this.phase !== "results")
@@ -167,10 +266,11 @@ function join(ws, msg) {
   const want = clean(msg.room, 8).toUpperCase();
   const stage = asStage(msg.stage);
   const mins = Number(msg.mins) | 0;
-  if (want) room = rooms.get(want) ?? new Room(want, false, stage, mins);
+  const mode = asMode(msg.mode);
+  if (want) room = rooms.get(want) ?? new Room(want, false, stage, mins, mode);
   else {
-    // quick play: an open room on the same map with space, in a match, else a new one
-    room = [...rooms.values()].find((r) => r.open && r.stage === stage && r.players.size < MAX_PLAYERS && r.phase !== "results") ?? new Room(code(), true, stage, 5);
+    // quick play: an open room on the same map and mode with space, in a match, else a new one
+    room = [...rooms.values()].find((r) => r.open && r.stage === stage && r.mode === mode && r.players.size < MAX_PLAYERS && r.phase !== "results") ?? new Room(code(), true, stage, 5, mode);
   }
   // (the room is on another map than the one this player loaded: he reloads onto it and joins again)
   if (room.stage !== stage) return send(ws, { t: "stage", room: room.id, stage: room.stage });
@@ -186,10 +286,13 @@ function join(ws, msg) {
   if (room.players.size >= MAX_PLAYERS) return send(ws, { t: "full", room: room.id });
   rooms.set(room.id, room);
   if (!room.spawns.length && Array.isArray(msg.spawns)) room.spawns = msg.spawns.filter((s) => Array.isArray(s) && s.length === 4 && s.every(Number.isFinite)).slice(0, 64);
-  const used = new Set([...room.players.values()].map((p) => p.kind));
-  const p = { id: nextId++, ws, name, room, kind: KINDS.find((k) => !used.has(k)) ?? KINDS[room.players.size % KINDS.length], x: 0, y: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, stance: 0, weapon: "rifle", reload: 0, alive: false, hp: MAX_HP, k: 0, d: 0, respawnAt: 0, spawnedAt: 0, hits: [] };
+  const used = new Set([...room.players.values()].map((p) => p.ffaKind));
+  const ffaKind = KINDS.find((k) => !used.has(k)) ?? KINDS[room.players.size % KINDS.length];
+  const p = { id: nextId++, ws, name, room, ffaKind, kind: ffaKind, team: -1, pts: 0, streak: 0, multi: 0, lastKillAt: 0, lastKiller: 0, dmgBy: new Map(), x: 0, y: 0, z: 0, yaw: 0, pitch: 0, vx: 0, vz: 0, stance: 0, weapon: "rifle", reload: 0, alive: false, hp: MAX_HP, k: 0, d: 0, respawnAt: 0, spawnedAt: 0, hits: [] };
   p.cid = cid;
   if (carry && room.phase !== "results") Object.assign(p, carry);
+  // (a rejoin keeps his side if it still has room for him; anyone else goes to the smaller team)
+  room.setTeam(p, room.joinTeam(p, old));
   room.players.set(p.id, p);
   if (cid) byCid.set(cid, p);
   ws.player = p;
@@ -201,10 +304,11 @@ function join(ws, msg) {
     id: p.id,
     room: room.id,
     stage: room.stage,
-    players: [...room.players.values()].map((o) => ({ id: o.id, name: o.name, kind: o.kind, k: o.k, d: o.d })),
+    mode: room.mode,
+    players: room.roster().players,
   });
   send(ws, room.info());
-  room.broadcast({ t: "join", id: p.id, name: p.name, kind: p.kind }, p);
+  room.broadcast({ t: "join", id: p.id, name: p.name, kind: p.kind, team: p.team }, p);
   room.broadcast(room.info(), p);
   room.spawn(p);
   console.log(`[${room.id}] ${name} joined (${room.players.size})`);
@@ -227,6 +331,8 @@ function onHit(p, m) {
   const target = room.players.get(m.to | 0);
   const dmg = Number(m.dmg);
   if (!target || target === p || !target.alive || !(dmg > 0) || dmg > MAX_HIT) return;
+  // (no friendly fire)
+  if (room.mates(p, target)) return;
   if (Math.hypot(target.x - p.x, target.y - p.y, target.z - p.z) > MAX_RANGE) return;
   const t = now();
   p.hits = p.hits.filter((h) => t - h < 1000);
@@ -234,15 +340,58 @@ function onHit(p, m) {
   p.hits.push(t);
   target.hp = Math.max(0, target.hp - dmg);
   target.hurtAt = t;
+  target.dmgBy.set(p.id, t);
   const head = !!m.head;
   room.broadcast({ t: "hit", by: p.id, to: target.id, dmg: Math.round(dmg), head, hp: Math.round(target.hp), from: [p.x, p.y + 1.5, p.z] });
-  if (target.hp <= 0) {
-    target.alive = false;
-    target.d++;
-    p.k++;
-    target.respawnAt = t + RESPAWN_MS;
-    room.broadcast({ t: "kill", by: p.id, to: target.id, head, w: clean(m.w, 12), scores: room.scores() });
+  if (target.hp <= 0) kill(room, p, target, { head, melee: !!m.mel, w: clean(m.w, 12) });
+}
+
+/**
+ * A kill, and its rewards — decided here, so everyone sees the same ones: HEADSHOT, FIRST BLOOD, a
+ * multi-kill (DOUBLE … MEGA KILL), a streak (KILLING SPREE at 3 … GODLIKE at 15), REVENGE on whoever
+ * killed you last, SHUTDOWN of someone on a streak, LONGSHOT, POINT BLANK, MELEE KILL; and an ASSIST for
+ * anyone else who hurt him in the last few seconds.
+ */
+function kill(room, p, target, { head, melee, w }) {
+  const t = now();
+  const dist = Math.hypot(target.x - p.x, target.y - p.y, target.z - p.z);
+  const medals = [];
+  if (head) medals.push("HEADSHOT");
+  if (!room.blooded) medals.push("FIRST BLOOD");
+  room.blooded = true;
+  p.multi = t - p.lastKillAt < MULTI_MS ? p.multi + 1 : 1;
+  p.lastKillAt = t;
+  if (p.multi >= 2) medals.push(MULTIS[p.multi] ?? "MEGA KILL");
+  p.streak++;
+  if (STREAKS[p.streak]) medals.push(STREAKS[p.streak]);
+  if (target.id === p.lastKiller) {
+    medals.push("REVENGE");
+    p.lastKiller = 0;
   }
+  if (target.streak >= 3) medals.push("SHUTDOWN");
+  if (melee) medals.push("MELEE KILL");
+  else if (dist >= LONGSHOT_M) medals.push("LONGSHOT");
+  else if (dist < 2.5) medals.push("POINT BLANK");
+  const pts = POINTS.kill + medals.reduce((a, n) => a + (POINTS[n] ?? 0), 0);
+  p.pts += pts;
+  p.k++;
+  const shut = target.streak;
+  target.streak = target.multi = 0;
+  target.lastKiller = p.id;
+  target.alive = false;
+  target.d++;
+  target.respawnAt = t + RESPAWN_MS;
+  // (whoever else hurt him lately, on the killer's side — or anyone, in free-for-all)
+  const assists = [];
+  for (const [id, at] of target.dmgBy) {
+    const a = room.players.get(id);
+    if (a && a !== p && t - at < ASSIST_MS && !room.mates(a, target)) {
+      a.pts += POINTS.ASSIST;
+      assists.push(id);
+    }
+  }
+  target.dmgBy.clear();
+  room.broadcast({ t: "kill", by: p.id, to: target.id, head, w: melee ? "melee" : w, medals, pts, assists, streak: p.streak, shut, dist: Math.round(dist), scores: room.scores(), teams: room.mode === "tdm" ? room.teamKills() : null });
 }
 
 // /health: what the game's MULTIPLAYER screen polls (it wakes a sleeping free host, and shows who's on)
@@ -250,11 +399,11 @@ const http = createServer((req, res) => {
   // (?room=CODE: who's in it — the invite screen shows it)
   const want = clean(new URL(req.url ?? "/", "http://x").searchParams.get("room"), 8).toUpperCase();
   const r = want ? rooms.get(want) : null;
-  const room = want ? (r ? { id: r.id, stage: r.stage, phase: r.phase, mins: r.mins, host: r.players.get(r.host)?.name ?? "", players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
+  const room = want ? (r ? { id: r.id, stage: r.stage, mode: r.mode, phase: r.phase, mins: r.mins, host: r.players.get(r.host)?.name ?? "", players: r.scores().map(({ name, k, d }) => ({ name, k, d })), endsIn: r.phase === "playing" ? r.endsAt - now() : 0, max: MAX_PLAYERS } : null) : undefined;
   const players = [...rooms.values()].reduce((n, r) => n + r.players.size, 0);
   const open = [...rooms.values()].filter((r) => r.open && r.players.size < MAX_PLAYERS).length;
   res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store" });
-  res.end(JSON.stringify({ ok: true, rooms: rooms.size, players, openRooms: open, room, version: 2 }));
+  res.end(JSON.stringify({ ok: true, rooms: rooms.size, players, openRooms: open, room, version: 3 }));
 });
 const wss = new WebSocketServer({ server: http, maxPayload: 16 * 1024 });
 wss.on("connection", (ws) => {
@@ -276,11 +425,35 @@ wss.on("connection", (ws) => {
       // (a fall, a grenade of your own: a death, no one's kill — counted only while the clock runs)
       p.alive = false;
       if (p.room.phase === "playing") p.d++;
+      p.streak = p.multi = 0;
+      p.dmgBy.clear();
       p.respawnAt = now() + RESPAWN_MS;
       p.room.broadcast({ t: "kill", by: p.id, to: p.id, head: false, w: "fall", scores: p.room.scores() });
     }
     // the host's controls: START (from the lobby or the results) and the match length
     else if (m.t === "start" && p.room.host === p.id) p.room.start();
+    // between matches: the host picks the mode, the teams and their names (quick play: anyone may move to
+    // the smaller side — there's no host to ask)
+    else if (m.t === "mode" && p.room.host === p.id && (p.room.phase === "lobby" || p.room.phase === "results")) p.room.setMode(m.mode);
+    else if (m.t === "team" && p.room.mode === "tdm" && (p.room.phase === "lobby" || p.room.phase === "results")) {
+      const room = p.room;
+      if (room.open) {
+        const other = 1 - p.team;
+        if (room.smallerTeam(p) !== other) return send(ws, { t: "teamFull" });
+        room.setTeam(p, other);
+      } else {
+        if (room.host !== p.id) return;
+        const who = room.players.get(m.id | 0);
+        if (!who) return;
+        room.setTeam(who, Number(m.team));
+      }
+      room.broadcast(room.roster());
+    } else if (m.t === "teamName" && !p.room.open && p.room.host === p.id && (m.team === 0 || m.team === 1)) {
+      const nm = clean(m.name, 14).toUpperCase();
+      if (!nm) return;
+      p.room.teamNames[m.team] = nm;
+      p.room.broadcast(p.room.info());
+    }
     else if (m.t === "mins" && p.room.host === p.id && LENGTHS.includes(m.mins | 0) && (p.room.phase === "lobby" || p.room.phase === "results")) {
       p.room.mins = m.mins | 0;
       p.room.broadcast(p.room.info());

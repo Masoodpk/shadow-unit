@@ -415,10 +415,8 @@ export class Mission {
     if (i < 0) return this.idle();
     if (!this.hold(dt, SEARCH_TIME, "SEARCHING", "SEARCH LOCKER", "SEARCHING")) return;
     h.audio.play("doorOpen", { volume: 0.6, rate: 1.35 });
-    if (!L.search(i)) {
-      this.hud.say("YOU", L.searchedCount === 1 ? "Rags and ration packs. Nothing." : "Empty.", 2);
-      return;
-    }
+    // (searching at the row opens the one locker with the letter in it: the others stay shut)
+    L.search(L.intel);
     // the folder, and a ring of keys on it
     this.after(0.45, () => {
       L.takeIntel();

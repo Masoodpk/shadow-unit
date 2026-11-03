@@ -636,6 +636,7 @@ if (invited && !new URLSearchParams(location.search).has("quick")) {
   $("btn-mp-create").classList.add("hidden");
   $("btn-mp-quick").classList.add("hidden");
   $("mp-map-row").classList.add("hidden");
+  $("mp-mode-row").classList.add("hidden");
   $("mp-len-row").classList.add("hidden");
   // (invited: the room's settings are its host's — the NEW ROOM card goes)
   $("mp-setup").classList.add("hidden");
@@ -697,6 +698,31 @@ const drawMpLens = () =>
     drawMpLens();
   });
 drawMpLens();
+/** free-for-all or team deathmatch, for a room you create (and what quick play looks for) */
+type MpMode = import("./net/MpClient").MpMode;
+const MP_MODES: { id: MpMode; label: string }[] = [
+  { id: "ffa", label: "FREE-FOR-ALL" },
+  { id: "tdm", label: "TEAM DEATHMATCH" },
+];
+let mpMode: MpMode = store.get("mpMode", "ffa") === "tdm" ? "tdm" : "ffa";
+function modeChips(box: HTMLElement, on: MpMode, pick: (m: MpMode) => void) {
+  box.innerHTML = "";
+  for (const m of MP_MODES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = m.label;
+    b.className = m.id === on ? "on" : "";
+    b.addEventListener("click", () => pick(m.id));
+    box.appendChild(b);
+  }
+}
+const drawMpModes = () =>
+  modeChips($("mp-modes"), mpMode, (m) => {
+    mpMode = m;
+    store.set("mpMode", m);
+    drawMpModes();
+  });
+drawMpModes();
 
 /** the pause menu, online: what the room is doing; the host's START / PLAY AGAIN and match length */
 function drawMpPause(r: import("./net/MpClient").RoomState | null) {
@@ -706,16 +732,84 @@ function drawMpPause(r: import("./net/MpClient").RoomState | null) {
   const players = `${r.players} PLAYER${r.players === 1 ? "" : "S"}`;
   $("mp-pause-state").innerHTML =
     r.phase === "lobby"
-      ? `WAITING ROOM · ${players} · <b>${r.mins} MIN</b> MATCH<br>${r.open ? "QUICK PLAY: STARTS BY ITSELF WHEN A SECOND PLAYER IS IN" : hostCtl ? "START WHEN EVERYONE'S IN — EVERYONE GETS THE SAME TIME" : `WAITING FOR <b>${who}</b> TO START`}`
+      ? `WAITING ROOM · ${players} · <b>${r.mins} MIN</b> ${r.mode === "tdm" ? `TEAM DEATHMATCH · ${r.team >= 0 ? `YOU'RE <b>${r.teamNames[r.team]}</b>` : "NO TEAM YET"}` : "FREE-FOR-ALL"}<br>${r.open ? "QUICK PLAY: STARTS BY ITSELF WHEN A SECOND PLAYER IS IN" : hostCtl ? "START WHEN EVERYONE'S IN — EVERYONE GETS THE SAME TIME" : `WAITING FOR <b>${who}</b> TO START`}`
       : r.phase === "countdown"
         ? `MATCH STARTING… · ${players}`
         : r.phase === "playing"
-          ? `MATCH IN PROGRESS · ${players} · ${r.mins} MIN`
+          ? `MATCH IN PROGRESS · ${r.mode === "tdm" ? "TEAMS" : "FREE-FOR-ALL"} · ${players} · ${r.mins} MIN`
           : `MATCH OVER · ${hostCtl ? "PLAY AGAIN, OR EXIT ROOM" : r.open ? "NEXT MATCH STARTS BY ITSELF" : `WAITING FOR <b>${who}</b> TO PLAY AGAIN`}`;
   $("mp-pause-len-row").classList.toggle("hidden", !hostCtl);
+  $("mp-pause-mode-row").classList.toggle("hidden", !hostCtl);
+  if (hostCtl) modeChips($("mp-pause-mode"), r.mode, (m) => game?.mpSetMode(m));
+  // team deathmatch: a friends' room shows the teams (the host makes them); quick play has SWITCH TEAM
+  const between = r.phase === "lobby" || r.phase === "results";
+  $("btn-mp-team").classList.toggle("hidden", !(r.mode === "tdm" && r.open && between));
+  if (r.team >= 0) $("btn-mp-team").textContent = `SWITCH TO TEAM ${r.teamNames[1 - r.team]}`;
+  drawTeamPicker(r, hostCtl);
   $("btn-mp-start").classList.toggle("hidden", !hostCtl);
   $("btn-mp-start").textContent = r.phase === "results" ? "PLAY AGAIN" : "START MATCH";
   if (hostCtl) lengthChips($("mp-pause-len"), r.mins, (m) => game?.mpSetMins(m));
+}
+$("btn-mp-team").addEventListener("click", () => game?.mpSwitchTeam());
+
+/**
+ * The teams of a friends' room (pause menu): the two sides with their names, and everyone the host hasn't
+ * put on one yet. The host moves each player (→ a side, ↔ the other side, × off it) and renames the sides,
+ * between matches; everyone else sees the same picture without the buttons.
+ */
+function drawTeamPicker(r: import("./net/MpClient").RoomState, hostCtl: boolean) {
+  const on = r.mode === "tdm" && !r.open;
+  $("mp-teams-ed").classList.toggle("hidden", !on);
+  $("mp-pause").classList.toggle("wide", on);
+  if (!on) return;
+  const loose = r.list.filter((p) => p.team < 0).length;
+  $("mp-teams-hint").textContent = hostCtl
+    ? loose ? `PUT EVERY PLAYER ON A TEAM, THEN START` : "EVERYONE HAS A TEAM — READY TO START"
+    : r.phase === "playing" || r.phase === "countdown" ? "LOCKED FOR THE MATCH" : `${r.hostName || "THE HOST"} PICKS THE TEAMS`;
+  for (const t of [0, 1]) {
+    const inp = $<HTMLInputElement>(`mp-tname-${t}`);
+    inp.disabled = !hostCtl;
+    // (never overwritten while the host is typing in it)
+    if (document.activeElement !== inp) inp.value = r.teamNames[t];
+  }
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  const btn = (id: number, team: number, label: string, cls: string, title: string) =>
+    `<button type="button" class="${cls}" data-id="${id}" data-team="${team}" title="${esc(title)}">${esc(label)}</button>`;
+  const row = (p: (typeof r.list)[number]) => {
+    const tags = (p.host ? "<small>HOST</small>" : "") + (p.me ? '<small class="you">YOU</small>' : "");
+    let ctl = "";
+    if (hostCtl) {
+      if (p.team < 0) ctl = btn(p.id, 0, `→ ${r.teamNames[0]}`, "to0", `Put ${p.name} on ${r.teamNames[0]}`) + btn(p.id, 1, `→ ${r.teamNames[1]}`, "to1", `Put ${p.name} on ${r.teamNames[1]}`);
+      else ctl = btn(p.id, 1 - p.team, "⇄", `to${1 - p.team}`, `Move ${p.name} to ${r.teamNames[1 - p.team]}`) + btn(p.id, -1, "×", "", `Take ${p.name} off ${r.teamNames[p.team]}`);
+    }
+    return `<div class="ted-p"><span class="nm">${esc(p.name)}</span>${tags}${ctl}</div>`;
+  };
+  const list = (team: number) => r.list.filter((p) => p.team === team);
+  for (const t of [0, 1]) {
+    const l = list(t);
+    $(`mp-tlist-${t}`).innerHTML = l.length ? l.map(row).join("") : `<div class="ted-empty">NOBODY YET</div>`;
+  }
+  const none = r.list.filter((p) => p.team < 0);
+  $("mp-tnone").classList.toggle("hidden", !none.length);
+  $("mp-tlist-x").innerHTML = none.map(row).join("");
+}
+$("mp-teams-ed").addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest("button[data-id]") as HTMLButtonElement | null;
+  if (b) game?.mpAssignTeam(Number(b.dataset.id), Number(b.dataset.team));
+});
+for (const t of [0, 1]) {
+  const inp = $<HTMLInputElement>(`mp-tname-${t}`);
+  // (the name goes to the room when the host's done: Enter, or leaving the box)
+  const commit = () => {
+    const v = inp.value.trim().toUpperCase().slice(0, 14);
+    if (v) game?.mpSetTeamName(t, v);
+  };
+  inp.addEventListener("change", commit);
+  inp.addEventListener("keydown", (e) => {
+    // (typing a name isn't playing: keys stay out of the game's bindings)
+    e.stopPropagation();
+    if (e.key === "Enter") inp.blur();
+  });
 }
 $("btn-mp-start").addEventListener("click", () => {
   game?.mpStart();
@@ -744,7 +838,7 @@ function startMp(room: string, onStage: StageId = mpStage) {
   store.set("mpName", name);
   store.set("mpRoom", room);
   store.set("mpUrl", url === mpDefaultUrl() ? "" : url);
-  mpSettings = { url, room, name, stage: onStage, onOtherStage: mpOtherStage, mins: mpMins, onRoom: drawMpPause };
+  mpSettings = { url, room, name, stage: onStage, onOtherStage: mpOtherStage, mins: mpMins, mode: mpMode, onRoom: drawMpPause };
   $("mp-pause").classList.remove("hidden");
   $("btn-mainmenu-p").textContent = "EXIT ROOM";
   // (online: no developer mode — its switches go, and it's off)
@@ -1203,7 +1297,7 @@ if (quick && !session.get("mpAuto")) {
   // (dev: ?quick=nightshift&mp=ROOM&name=X — straight into an online room)
   const q = new URLSearchParams(location.search);
   if (q.has("mp")) {
-    mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV", stage, onOtherStage: mpOtherStage, mins: mpMins, onRoom: drawMpPause };
+    mpSettings = { url: q.get("mpurl") ?? mpDefaultUrl(), room: (q.get("mp") ?? "").toUpperCase(), name: q.get("name") ?? "DEV", stage, onOtherStage: mpOtherStage, mins: mpMins, mode: q.get("mode") === "tdm" ? "tdm" : mpMode, onRoom: drawMpPause };
     document.body.classList.add("mp-on");
     $("mp-pause").classList.remove("hidden");
     $("btn-invite-p").classList.remove("hidden");

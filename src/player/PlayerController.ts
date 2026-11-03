@@ -5,10 +5,29 @@ import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { HitKind, PLAYER } from "../config/game";
 import { Input } from "../core/Input";
-import { DEG, Spring, clamp, damp, lerp } from "../core/math";
+import { DEG, Spring, clamp, damp, lerp, smoothstep } from "../core/math";
 import { AudioEngine } from "../audio/AudioEngine";
 import { difficulty } from "../config/difficulty";
 
+/**
+ * The slide (sprint, then crouch): down on one hip at the sprint's speed and a bit more, the speed running
+ * down to a crouch-walk over `dur`; you can shoot all the way (it isn't a sprint), steer a little, jump out
+ * of it, and come up running if sprint is still held. Online the others see it (the Mixamo running slide).
+ */
+const SLIDE = {
+  dur: 0.85,
+  /** × the speed you were running at (at least a sprint's) */
+  boost: 1.25,
+  /** eye height on the hip (a crouch's is 1.08) */
+  eye: 0.78,
+  eyeRate: 16,
+  /** rad/s of steering */
+  steer: 1.2,
+  cooldown: 0.45,
+  /** camera roll (rad) and FOV kick (degrees) */
+  roll: 0.06,
+  fov: 6,
+};
 export interface PlayerModifiers {
   speedScale: number;
   canSprint: boolean;
@@ -38,6 +57,16 @@ export class PlayerController {
   /** lying down (crawl). Exclusive with crouched. */
   prone = false;
   sprinting = false;
+  /** sliding (sprint + crouch): seconds since it began, or -1 */
+  slideT = -1;
+  get sliding() {
+    return this.slideT >= 0;
+  }
+  private slideCd = 0;
+  private slideV0 = 0;
+  private readonly slideDir = new Vector3();
+  /** the camera's tilt into a slide (eased 0..1) */
+  private slideTilt = 0;
   /** -1 = full lean left, +1 = full lean right */
   lean = 0;
   /** sideways head offset actually applied this frame (m, after the wall clamp) */
@@ -152,6 +181,8 @@ export class PlayerController {
     this.vy = 0;
     this.crouched = false;
     this.prone = false;
+    this.slideT = -1;
+    this.slideCd = this.slideTilt = 0;
     this.lean = this.leanOffset = 0;
     this.viewOfs = this.viewOfsV = 0;
     this.lastFeetY = NaN;
@@ -340,8 +371,11 @@ export class PlayerController {
         this.audio.play("foley", { volume: 0.35 });
       }
     }
+    this.slideCd -= dt;
     if (inp.hit("crouch")) {
-      if (this.prone) {
+      // sprinting: crouch slides (you can shoot as you go); otherwise it's the crouch toggle
+      if (this.sprinting && this.grounded && this.slideCd <= 0 && this.slideT < 0) this.startSlide();
+      else if (this.prone) {
         if (this.canRise(PLAYER.crouchHalfHeight)) {
           this.prone = false;
           this.crouched = true;
@@ -362,7 +396,9 @@ export class PlayerController {
       if (this.grounded) this.collider.position.y += this.halfH - before;
       this.collider.ellipsoid.y = this.halfH;
     }
-    this.eyeH = lerp(this.eyeH, this.prone ? PLAYER.proneEye : this.crouched ? PLAYER.crouchEye : PLAYER.standEye, damp(stanceRate, dt));
+    // (sliding: the eye drops lower than a crouch, fast, and comes back up as the slide runs out)
+    const slideEye = this.slideT >= 0 ? lerp(SLIDE.eye, PLAYER.crouchEye, smoothstep((this.slideT - (SLIDE.dur - 0.25)) / 0.25)) : 0;
+    this.eyeH = lerp(this.eyeH, this.slideT >= 0 ? slideEye : this.prone ? PLAYER.proneEye : this.crouched ? PLAYER.crouchEye : PLAYER.standEye, damp(this.slideT >= 0 ? SLIDE.eyeRate : stanceRate, dt));
 
     // ---- lean / peek (hold): the head moves sideways, the body stays behind cover
     const leanWant = this.sprinting ? 0 : (inp.held("leanRight") ? 1 : 0) - (inp.held("leanLeft") ? 1 : 0);
@@ -396,14 +432,17 @@ export class PlayerController {
     const wz = -fx * sin + fz * cos;
 
     const wantSprint = inp.held("sprint");
-    this.sprinting = wantSprint && fz > 0.5 && mods.canSprint && !this.crouched && !this.prone && this.grounded;
+    this.sprinting = wantSprint && fz > 0.5 && mods.canSprint && !this.crouched && !this.prone && this.grounded && this.slideT < 0;
     let speed = this.prone ? PLAYER.proneSpeed : this.crouched ? PLAYER.crouchSpeed : this.sprinting ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
     speed *= mods.speedScale;
 
-    const accel = this.grounded ? (len > 0 ? PLAYER.groundAccel : PLAYER.groundDecel) : PLAYER.airAccel;
-    const a = damp(accel, dt);
-    this.velocity.x += (wx * speed - this.velocity.x) * a;
-    this.velocity.z += (wz * speed - this.velocity.z) * a;
+    if (this.slideT >= 0) this.updateSlide(dt, wx, wz, len, inp.held("sprint"));
+    else {
+      const accel = this.grounded ? (len > 0 ? PLAYER.groundAccel : PLAYER.groundDecel) : PLAYER.airAccel;
+      const a = damp(accel, dt);
+      this.velocity.x += (wx * speed - this.velocity.x) * a;
+      this.velocity.z += (wz * speed - this.velocity.z) * a;
+    }
     const hs = Math.hypot(this.velocity.x, this.velocity.z);
     this.moveAmount = clamp(hs / PLAYER.walkSpeed, 0, 1.6);
 
@@ -412,6 +451,8 @@ export class PlayerController {
     const now = performance.now() / 1000;
     if (this.grounded) this.lastGrounded = now;
     if (inp.hit("jump") && this.downT <= 0 && now - this.lastGrounded < PLAYER.coyoteTime && this.jumpLock <= 0) {
+      // (a jump out of a slide: up on your feet, if there's room, and away with its speed)
+      if (this.slideT >= 0 && this.canRise(PLAYER.standHalfHeight)) this.endSlide(true);
       if (this.prone) {
         if (this.canRise(PLAYER.crouchHalfHeight)) {
           this.prone = false;
@@ -478,7 +519,7 @@ export class PlayerController {
     void prevY;
 
     // ---- footsteps: one per half gait cycle, so the sound lands exactly on the bob's low point
-    if (this.grounded && hs > 0.3) {
+    if (this.grounded && hs > 0.3 && this.slideT < 0) {
       const stride = PLAYER.footstepStride * (this.sprinting ? 1.22 : this.prone ? 0.55 : this.crouched ? 0.75 : 1);
       const before = Math.floor(this.gaitPhase / Math.PI);
       this.gaitPhase += (hs * dt * Math.PI) / stride;
@@ -489,6 +530,48 @@ export class PlayerController {
         }
       }
     }
+  }
+
+  /** sprint + crouch: down onto your hip with the sprint's speed (and a bit more), along the way you were running */
+  private startSlide() {
+    const hs = Math.hypot(this.velocity.x, this.velocity.z);
+    this.slideDir.set(this.velocity.x, 0, this.velocity.z);
+    if (hs < 0.1) this.slideDir.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    this.slideDir.normalize();
+    this.slideV0 = Math.max(hs, PLAYER.sprintSpeed) * SLIDE.boost;
+    this.slideT = 0;
+    this.crouched = true;
+    this.lean = 0;
+    this.audio.play("foley", { volume: 0.55, rate: 0.7, pitchVar: 0.1 });
+    this.audio.play("land", { volume: 0.25, rate: 1.3 });
+  }
+
+  /** the slide's speed runs down to a crouch-walk; it bends a little towards where you steer */
+  private updateSlide(dt: number, wx: number, wz: number, len: number, sprintHeld: boolean) {
+    this.slideT += dt;
+    const u = Math.min(1, this.slideT / SLIDE.dur);
+    if (len > 0.1) {
+      // (steer: up to SLIDE.steer rad/s towards the stick / keys, never backwards)
+      const want = Math.atan2(wx, wz), cur = Math.atan2(this.slideDir.x, this.slideDir.z);
+      const d = Math.atan2(Math.sin(want - cur), Math.cos(want - cur));
+      if (Math.abs(d) < 2) {
+        const a = cur + Math.max(-SLIDE.steer * dt, Math.min(SLIDE.steer * dt, d));
+        this.slideDir.set(Math.sin(a), 0, Math.cos(a));
+      }
+    }
+    // the speed holds through the first part and runs out towards the end
+    const v = lerp(this.slideV0, PLAYER.crouchSpeed, u * u);
+    this.velocity.x = this.slideDir.x * v;
+    this.velocity.z = this.slideDir.z * v;
+    // off a ledge: the slide's over, the momentum carries on through the air
+    if (u >= 1 || (!this.grounded && this.airTime > 0.15)) this.endSlide(sprintHeld);
+  }
+
+  /** the slide's done: crouched where you stopped — or straight up and running if sprint is still held */
+  private endSlide(stand: boolean) {
+    this.slideT = -1;
+    this.slideCd = SLIDE.cooldown;
+    if (stand && this.canRise(PLAYER.standHalfHeight)) this.crouched = false;
   }
 
   /** try to climb a step of up to PLAYER.stepDown: rise, move again, keep it only if it got us further */
@@ -600,6 +683,9 @@ export class PlayerController {
     }
     this.leanOffset = ofs;
     roll -= this.lean * PLAYER.leanRoll * (this.prone ? 0.5 : 1);
+    // (a slide tips the view a little, as you go down on one hip)
+    this.slideTilt = lerp(this.slideTilt, this.slideT >= 0 ? 1 : 0, damp(this.slideT >= 0 ? 10 : 6, dt));
+    roll += this.slideTilt * SLIDE.roll;
     this.camera.position.set(p.x + bobX * cs + ofs * cs, headY, p.z - bobX * sn - ofs * sn);
     // explosion shake: smooth noise (sum of sines), strength = trauma², decays over ~1 s
     this.shakeT += dt;
@@ -613,7 +699,7 @@ export class PlayerController {
     this.camera.rotation.y = this.yaw + sy;
     this.camera.rotation.z = roll + Math.sin(this.gaitPhase) * 0.0028 * this.bobAmt + sz;
 
-    const targetFov = this.baseFov * lerp(1, mods.adsFovScale, mods.adsT) + (this.sprinting ? PLAYER.sprintFovBoost : 0);
+    const targetFov = this.baseFov * lerp(1, mods.adsFovScale, mods.adsT) + (this.sprinting ? PLAYER.sprintFovBoost : 0) + this.slideTilt * SLIDE.fov;
     this.fovCurrent = lerp(this.fovCurrent, targetFov, damp(this.sprinting ? 8 : 22, dt));
     this.camera.fov = this.fovCurrent * DEG;
   }

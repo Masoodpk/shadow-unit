@@ -12,9 +12,9 @@ import lockerUrl from "../assets/props/locker.glb?url";
 
 /**
  * A row of steel lockers against a wall ("Locker room - 1mb", CC BY 4.0): the cell's stash in the
- * tunnels under the town. Each
- * one can be searched (its door swings open); one holds the dossier and the key ring — a manila
- * folder with a ring of keys on it, on the shelf, taken when you search that locker.
+ * tunnels under the town. One holds the dossier and the key ring — a manila folder with a ring of
+ * keys on it, on the shelf. Searching at the row opens that locker only (its door swings open) and the
+ * folder is taken; the others stay shut.
  *
  * The model is a pair of lockers, one shut and one with its door open: the shut one is the
  * template, and the open one shows which edge its door hangs on.
@@ -231,9 +231,8 @@ export class Lockers {
     }
   }
 
-  /** the row's middle at chest height (the objective marker) */
+  /** the locker with the letter, at chest height (the objective marker) */
   get marker() {
-    const a = this.list[0].front, b = this.list[this.list.length - 1].front;
-    return a.add(b).scale(0.5).subtract(this.fwd.scale(0.4));
+    return this.list[this.intel].front.subtract(this.fwd.scale(0.4));
   }
 }

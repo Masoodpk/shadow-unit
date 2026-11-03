@@ -41,6 +41,13 @@ export const ACTIONS: Record<ActionKey, ActionDef> = {
   deathR: { clip: "deathR", t0: 0, t1: 1.2, rate: 1, fadeIn: 0.06, fadeOut: 0, aim: 0 },
   deathB: { clip: "deathB", t0: 0, t1: 1.2, rate: 1, fadeIn: 0.06, fadeOut: 0, aim: 0 },
 };
+/**
+ * The slide (players online): the clip from just before the drop, played a little fast so the drop,
+ * the slide on the hip and the start of the rise fit a player's 0.85 s slide; it holds at T1 until he's up.
+ */
+const SLIDE_T0 = 0.1, SLIDE_RATE = 1.25, SLIDE_T1 = 1.3;
+/** how far the chest comes back towards the shooting stance while sliding (0: the clip's, lying on the hip) */
+const SLIDE_UPRIGHT = 0.6;
 /** grenade throw (left arm): clip time of the release */
 export const THROW_RELEASE = 0.9;
 const THROW_RATE = 1.15;
@@ -56,6 +63,8 @@ export interface LocoInput {
   crouchMove: boolean;
   reload: number;
   blind: number;
+  /** sliding (a player online): seconds since the slide began, or -1 / missing */
+  slide?: number;
 }
 
 export interface AnimOutput {
@@ -105,6 +114,9 @@ export class EnemyAnimationController {
   private crouchW = 0;
   private tIdle = Math.random() * 7;
   private tAim = 0;
+  /** the slide's weight (eased in and out) and its clip time */
+  private slideW = 0;
+  private slideT = SLIDE_T0;
   private action: { key: ActionKey; t: number; fired: boolean; out: boolean } | null = null;
   private throwT = -1;
   private throwFired = false;
@@ -119,6 +131,8 @@ export class EnemyAnimationController {
     private clips: Record<ClipKey, Clip>,
     private upper: Float32Array,
     private leftArm: Float32Array,
+    /** both arms (clavicles down): what stays on the rifle through a slide */
+    private arms?: Float32Array,
   ) {}
 
   /** start a one-shot (interrupts any other) */
@@ -250,6 +264,26 @@ export class EnemyAnimationController {
     // every loop is sampled relative to its own left-heel strike, so blended clips step together
     for (const p of this.picks) base.add(p.c, ((this.phase + p.c.sync) % 1) * p.c.dur, p.w);
     base.normalize();
+
+    // ---------------- slide: the hips, legs and spine from the clip; the arms stay up on the rifle in
+    // the shooting stance (the aim then turns the chest onto the target), so he fires as he slides
+    const sl = inp.slide ?? -1;
+    if (sl >= 0) this.slideT = Math.min(SLIDE_T1, SLIDE_T0 + sl * SLIDE_RATE);
+    this.slideW += ((sl >= 0 ? 1 : 0) - this.slideW) * Math.min(1, dt / (sl >= 0 ? 0.07 : 0.22));
+    if (this.slideW < 1e-3) this.slideW = 0;
+    if (this.slideW > 0 && C.slide) {
+      layer.clear();
+      layer.add(C.slide, this.slideT, 1, false);
+      layer.normalize();
+      base.mixAll(layer, this.slideW);
+      // (the chest partly back up — leaning back, facing ahead, not lying on his side — and the arms
+      // wholly in the shooting stance)
+      layer.clear();
+      layer.add(C.aim, this.tAim, 1);
+      layer.normalize();
+      base.mix(layer, this.slideW * SLIDE_UPRIGHT, this.upper);
+      if (this.arms) base.mix(layer, this.slideW, this.arms);
+    }
 
     // ---------------- upper-body layers
     let runW = 0;
