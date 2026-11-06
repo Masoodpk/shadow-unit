@@ -59,7 +59,7 @@ export class MetroMission {
       begin: () => {
         host.showHud(false);
         host.showWeapon(false);
-        this.hud.letterbox(true, false);
+        this.hud.letterbox(true, true);
       },
       end: () => {
         this.hud.letterbox(false, false);
@@ -79,6 +79,10 @@ export class MetroMission {
 
   get cinematic() {
     return this.shots.active;
+  }
+  /** the player skipped the cinematic on screen */
+  skipCinematic() {
+    this.shots.skip();
   }
   get freezeHostiles() {
     return this.cinematic || this.phase === "done";

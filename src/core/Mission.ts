@@ -147,6 +147,18 @@ export class Mission {
   get cinematic() {
     return this.shots.length > 0;
   }
+  /** the player skipped the cinematic on screen: the rest of its shots' events still happen, then its ending */
+  skipCinematic() {
+    const shots = this.shots;
+    if (!shots.length) return;
+    const s = shots[this.shotI];
+    if (s.cue && !this.cued) s.cue[1]();
+    for (let k = this.shotI + 1; k < shots.length && this.shots === shots; k++) {
+      shots[k].enter?.();
+      shots[k].cue?.[1]();
+    }
+    if (this.shots === shots) this.endShots();
+  }
   /** soldiers keep still and blind in a cinematic, and once he's free */
   get freezeHostiles() {
     return this.cinematic || this.phase === "ending" || this.phase === "done";
@@ -639,7 +651,7 @@ export class Mission {
     this.afterShots = after;
     h.showHud(false);
     h.showWeapon(false);
-    this.hud.letterbox(true, false);
+    this.hud.letterbox(true, true);
     this.startShot();
   }
 

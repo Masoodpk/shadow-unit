@@ -1,5 +1,5 @@
 /** Playable stages. The menu lists them; the game builds the chosen one at load. */
-export type StageId = "office" | "dust2" | "metro" | "nightshift" | "whiteout";
+export type StageId = "office" | "dust2" | "metro" | "nightshift" | "airport" | "whiteout";
 
 export interface StageInfo {
   id: StageId;
@@ -65,6 +65,18 @@ export const STAGES: StageInfo[] = [
     description: "Every gun the cell buys is paid for from one office block: front companies, offshore books, a server room full of names. Its paymasters are dug in among the cubicles with a garrison to guard them. Go in through the lobby and clear the building, floor by floor.",
     objective: "CLEAR THE OFFICES",
     tag: "16 HOSTILES · OFFICE BLOCK",
+    ambience: "none",
+    lit: false,
+    snow: false,
+  },
+  {
+    id: "airport",
+    name: "LAST CALL",
+    kicker: "OPERATION // LAST CALL",
+    location: "Port Calder International, golden hour",
+    description: "The Black Ledger paymaster is running. His charter is boarding at Gate 14, and the cell has locked the airport down to cover him. Go in from the departures curb, fight through check-in and security to the gate, and clear the terminal, the hangar and the jet itself.",
+    objective: "CLEAR THE AIRPORT",
+    tag: "22 HOSTILES · INTERNATIONAL AIRPORT",
     ambience: "none",
     lit: false,
     snow: false,

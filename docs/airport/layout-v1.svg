@@ -1,0 +1,297 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -36 136 158" width="1088" height="1264" font-family="Helvetica, Arial, sans-serif">
+  <!-- LAST CALL — Port Calder International (PCX). Top-down layout v1.
+       1 unit = 1 metre. Map coords: x east 0..128, y south 0..96 (north/airside at top).
+       Blender: X = x - 64, Y = 48 - y. -->
+  <defs>
+    <pattern id="hatch" width="1.6" height="1.6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="1.6" height="1.6" fill="#cfe3f7" fill-opacity="0.55"/>
+      <line x1="0" y1="0" x2="0" y2="1.6" stroke="#2f6fb0" stroke-width="0.25" stroke-opacity="0.5"/>
+    </pattern>
+    <marker id="aG" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2e9e57"/></marker>
+    <marker id="aC" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d18f00"/></marker>
+    <marker id="aE" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2f7fd8"/></marker>
+    <marker id="aT" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9b4fc4"/></marker>
+    <style>
+      .z  { fill:#f8f4ea; stroke:#33363b; stroke-width:0.45; }
+      .up { fill:url(#hatch); stroke:#2f6fb0; stroke-width:0.4; stroke-dasharray:1.4 0.7; }
+      .t  { font-size:2.3px; font-weight:700; fill:#22252a; }
+      .s  { font-size:1.45px; fill:#4a4e55; }
+      .sb { font-size:1.45px; fill:#2f6fb0; font-weight:700; }
+      .cv { fill:#6b6f76; }
+      .door { fill:#ffffff; stroke:#2a9d4b; stroke-width:0.3; }
+      .shut { stroke:#d23c3c; stroke-width:0.9; }
+      .sl { stroke:#d23c3c; stroke-width:0.25; stroke-dasharray:0.8 0.5; }
+      .lane { fill:none; stroke-width:0.7; stroke-linecap:round; stroke-linejoin:round; }
+      .pp { fill:#ffcc00; stroke:#7a5b00; stroke-width:0.2; }
+      .mis { fill:#22252a; }
+      .misn { font-size:1.6px; font-weight:700; fill:#fff; text-anchor:middle; }
+    </style>
+  </defs>
+
+  <!-- page -->
+  <rect x="-4" y="-36" width="136" height="158" fill="#f1eee6"/>
+
+  <!-- ===== BACKDROP (out of bounds) ===== -->
+  <rect x="-4" y="-34" width="136" height="33" fill="#dfe4e8"/>
+  <rect x="-4" y="-30" width="136" height="12" fill="#5b6470"/>
+  <line x1="-4" y1="-24" x2="132" y2="-24" stroke="#fff" stroke-width="0.35" stroke-dasharray="3 2.5"/>
+  <text x="2" y="-25.2" class="s" fill="#e9edf1" style="fill:#e9edf1">RUNWAY 09/27  (3,200 m — backdrop only)</text>
+  <rect x="-4" y="-12" width="136" height="7" fill="#8a929c"/>
+  <line x1="-4" y1="-8.5" x2="132" y2="-8.5" stroke="#f2c500" stroke-width="0.3"/>
+  <text x="2" y="-9.3" class="s" style="fill:#f4f4f4">TAXIWAY BRAVO — taxiing aircraft (animated, non-solid)</text>
+  <circle cx="20" cy="-14.5" r="2.6" fill="#9aa3ad" stroke="#33363b" stroke-width="0.3"/>
+  <text x="24" y="-14" class="s">CONTROL TOWER — 62 m, visible from everywhere, NOT climbable</text>
+  <text x="2" y="-32" class="t" style="font-size:1.9px">BACKDROP · out of bounds · low-poly · no collision except perimeter fence</text>
+  <line x1="0" y1="-0.6" x2="128" y2="-0.6" stroke="#33363b" stroke-width="0.35" stroke-dasharray="0.8 0.6"/>
+
+  <!-- ===== PLAYABLE GROUND (outdoor concrete) ===== -->
+  <rect x="0" y="0" width="128" height="96" fill="#d9d4c7" stroke="#33363b" stroke-width="0.6"/>
+  <!-- apron markings -->
+  <line x1="106" y1="0.5" x2="106" y2="43.5" stroke="#f2c500" stroke-width="0.3"/>
+  <line x1="36" y1="34" x2="88" y2="34" stroke="#f2c500" stroke-width="0.2" stroke-dasharray="1 1"/>
+
+  <!-- ===== NORTH BAND ===== -->
+  <!-- Cargo terminal -->
+  <rect x="2" y="4" width="32" height="28" class="z"/>
+  <g class="cv">
+    <rect x="16" y="7.5" width="15" height="1"/><rect x="16" y="12" width="15" height="1"/>
+    <rect x="16" y="16.5" width="15" height="1"/><rect x="16" y="21" width="15" height="1"/>
+    <rect x="16" y="25.5" width="15" height="1"/>
+    <rect x="5" y="22" width="3" height="3"/><rect x="9" y="22" width="3" height="3"/><rect x="5" y="26" width="3" height="3"/>
+    <rect x="11" y="17" width="2" height="3"/>
+  </g>
+  <rect x="3" y="5" width="10" height="8" class="up"/>
+  <text x="3.5" y="7.4" class="sb">OFFICE +4 m</text>
+  <text x="14" y="30.6" class="t">CARGO</text>
+  <text x="3.5" y="16.5" class="s">ULD bays · racks · forklift</text>
+
+  <!-- Hangar -->
+  <rect x="46" y="2" width="36" height="22" class="z"/>
+  <rect x="54" y="3" width="20" height="6" fill="#1fa595" fill-opacity="0.85"/>
+  <text x="64" y="6.7" class="t" text-anchor="middle" style="fill:#fff">BRAVO SPAWN</text>
+  <!-- turboprop under maintenance -->
+  <g fill="#9aa3ad" stroke="#33363b" stroke-width="0.2">
+    <rect x="62.5" y="10" width="3" height="11" rx="1.4"/>
+    <rect x="55" y="13.5" width="18" height="2"/>
+    <rect x="61" y="10" width="6" height="1"/>
+  </g>
+  <rect x="78" y="3" width="3" height="20" class="up"/>
+  <text x="77.4" y="13" class="sb" transform="rotate(-90 77.4 13)" text-anchor="middle">CATWALK +6 m</text>
+  <g class="cv"><rect x="48" y="17" width="4" height="2"/><rect x="48" y="11" width="2" height="4"/></g>
+  <text x="47" y="23" class="t" style="font-size:2px">HANGAR 3</text>
+
+  <!-- Apron mid cover (GSE) -->
+  <g class="cv">
+    <rect x="43" y="26" width="4" height="4"/>
+    <rect x="51" y="34" width="2" height="6"/>
+    <rect x="58" y="29" width="3" height="2"/><rect x="62" y="29" width="3" height="2"/><rect x="66" y="29" width="3" height="2"/><rect x="70" y="29" width="3" height="2"/>
+    <rect x="66" y="37" width="2.4" height="3"/>
+    <rect x="76" y="35" width="2" height="7"/>
+    <rect x="84" y="27" width="3" height="3"/>
+  </g>
+  <text x="38" y="42.5" class="t">APRON</text>
+  <text x="54.5" y="27.5" class="s">bag-cart train</text>
+  <text x="70" y="41.8" class="s">tug · belt loader</text>
+
+  <!-- Gate 14 aircraft (narrow-body, nose to terminal) -->
+  <g fill="#ffffff" stroke="#33363b" stroke-width="0.3">
+    <path d="M104,26 L89,18 L89,16.2 L104,20 Z"/>
+    <path d="M108,26 L123,18 L123,16.2 L108,20 Z"/>
+    <path d="M104,9.5 L97.5,6 L97.5,5 L104,6.5 Z"/>
+    <path d="M108,9.5 L114.5,6 L114.5,5 L108,6.5 Z"/>
+    <path d="M104,4 L108,4 L108,37 Q108,41.5 106,41.5 Q104,41.5 104,37 Z" fill="#e7f4f2"/>
+  </g>
+  <rect x="96.5" y="21.5" width="2" height="4" fill="#9aa3ad" stroke="#33363b" stroke-width="0.2"/>
+  <rect x="113.5" y="21.5" width="2" height="4" fill="#9aa3ad" stroke="#33363b" stroke-width="0.2"/>
+  <text x="106" y="31" class="sb" transform="rotate(-90 106 31)" text-anchor="middle" style="fill:#1f6f68">CABIN +3.4 m</text>
+  <!-- jet bridge (L1) -->
+  <path d="M94.5,44 L94.5,39.5 L103.6,36" fill="none" stroke="#2f6fb0" stroke-width="2.4" stroke-opacity="0.55"/>
+  <text x="88.5" y="38.6" class="sb">JET BRIDGE</text>
+  <!-- rear airstair -->
+  <rect x="98.5" y="9.5" width="5.5" height="2" fill="#9aa3ad" stroke="#33363b" stroke-width="0.2"/>
+  <text x="92" y="13.4" class="s">airstair</text>
+  <!-- apron east cover -->
+  <g class="cv"><rect x="118" y="28" width="3" height="9"/><rect x="111" y="38" width="2.5" height="2"/><rect x="92" y="30" width="2" height="5"/></g>
+  <text x="116" y="42.5" class="s">fuel truck · GPU</text>
+  <text x="110" y="2.6" class="t" style="font-size:2px">GATE 14 STAND</text>
+
+  <!-- ===== TERMINAL — ground (L0) ===== -->
+  <!-- Customs / cargo office -->
+  <rect x="2" y="58" width="20" height="28" class="z"/>
+  <line x1="2" y1="68" x2="16" y2="68" stroke="#33363b" stroke-width="0.35"/>
+  <line x1="2" y1="77" x2="16" y2="77" stroke="#33363b" stroke-width="0.35"/>
+  <line x1="16" y1="58" x2="16" y2="63" stroke="#33363b" stroke-width="0.35"/>
+  <line x1="16" y1="81" x2="16" y2="86" stroke="#33363b" stroke-width="0.35"/>
+  <text x="3" y="61.5" class="t" style="font-size:2px">CUSTOMS</text>
+  <text x="3" y="64" class="s">inspection rooms</text>
+  <g class="cv"><rect x="5" y="70" width="6" height="2"/><rect x="5" y="80" width="2" height="4"/></g>
+  <!-- Bus gate 12A -->
+  <rect x="40" y="44" width="16" height="12" class="z"/>
+  <text x="41" y="47" class="t" style="font-size:1.9px">BUS GATE 12A</text>
+  <g class="cv"><rect x="43" y="50" width="8" height="0.9"/><rect x="43" y="52.5" width="8" height="0.9"/></g>
+  <!-- Airside atrium (L0) -->
+  <rect x="56" y="44" width="28" height="10" class="z"/>
+  <text x="57" y="46.8" class="t" style="font-size:1.9px">ATRIUM</text>
+  <!-- Security office -->
+  <rect x="40" y="56" width="14" height="8" class="z"/>
+  <text x="41" y="59" class="t" style="font-size:1.7px">SECURITY OFFICE</text>
+  <text x="41" y="61" class="s">CCTV · lockdown console</text>
+  <!-- Security checkpoint -->
+  <rect x="54" y="54" width="30" height="10" class="z"/>
+  <g class="cv">
+    <rect x="58" y="56.5" width="1.4" height="5"/><rect x="64" y="56.5" width="1.4" height="5"/>
+    <rect x="70" y="56.5" width="1.4" height="5"/><rect x="76" y="56.5" width="1.4" height="5"/>
+  </g>
+  <g stroke="#6b6f76" stroke-width="0.25"><line x1="55" y1="62.8" x2="83" y2="62.8"/><line x1="61.5" y1="56" x2="61.5" y2="62"/><line x1="67.5" y1="56" x2="67.5" y2="62"/><line x1="73.5" y1="56" x2="73.5" y2="62"/></g>
+  <text x="79" y="59" class="t" style="font-size:1.7px">SEC</text>
+  <!-- Baggage make-up -->
+  <rect x="84" y="44" width="42" height="18" class="z"/>
+  <g stroke="#6b6f76" stroke-width="0.8" fill="none"><path d="M94,62 L94,52 L116,52 L116,62"/><path d="M88,48 L122,48"/></g>
+  <g class="cv"><rect x="99" y="55" width="3" height="2"/><rect x="103" y="55" width="3" height="2"/><rect x="108" y="57" width="2" height="3"/></g>
+  <text x="85" y="60.6" class="t" style="font-size:1.9px">BAGGAGE MAKE-UP</text>
+  <!-- Check-in hall -->
+  <rect x="22" y="64" width="62" height="22" class="z"/>
+  <g class="cv">
+    <rect x="47" y="71" width="3" height="11"/><rect x="56" y="71" width="3" height="11"/><rect x="65" y="71" width="3" height="11"/>
+    <rect x="27" y="76" width="7" height="2.6"/>
+    <circle cx="38" cy="70" r="0.7"/><circle cx="38" cy="81" r="0.7"/><circle cx="66" cy="68" r="0.7"/><circle cx="56" cy="84" r="0.7"/>
+  </g>
+  <text x="25.5" y="75.2" class="s">info desk</text>
+  <text x="47" y="70.2" class="s">CHECK-IN A · B · C</text>
+  <text x="23" y="85" class="t">CHECK-IN HALL  (12 m roof)</text>
+  <!-- escalators to mezz -->
+  <rect x="76" y="68" width="4" height="8" fill="#ffffff" stroke="#2f6fb0" stroke-width="0.3"/>
+  <g stroke="#2f6fb0" stroke-width="0.2"><line x1="78" y1="68" x2="78" y2="76"/><line x1="76" y1="70" x2="80" y2="70"/><line x1="76" y1="72" x2="80" y2="72"/><line x1="76" y1="74" x2="80" y2="74"/></g>
+  <text x="75.4" y="78.2" class="sb">ESC ↑ mezz</text>
+  <!-- Baggage claim -->
+  <rect x="84" y="62" width="42" height="24" class="z"/>
+  <ellipse cx="96" cy="73" rx="6" ry="2.3" fill="#ffffff" stroke="#6b6f76" stroke-width="0.9"/>
+  <ellipse cx="114" cy="73" rx="6" ry="2.3" fill="#ffffff" stroke="#6b6f76" stroke-width="0.9"/>
+  <line x1="96" y1="70.7" x2="96" y2="62" stroke="#6b6f76" stroke-width="0.9"/>
+  <line x1="114" y1="70.7" x2="114" y2="62" stroke="#6b6f76" stroke-width="0.9"/>
+  <text x="86" y="84.6" class="t">BAGGAGE CLAIM</text>
+  <text x="91.5" y="79" class="s">belt 1</text><text x="109.5" y="79" class="s">belt 2</text>
+  <text x="97" y="66.2" class="s">crawl-through belt flaps (crouch)</text>
+
+  <!-- ===== UPPER LEVEL (L1, +5 m) ===== -->
+  <path d="M40,44 H126 V56 H84 V68 H40 Z M60,46 V53 H80 V46 Z" class="up" fill-rule="evenodd"/>
+  <!-- atrium escalators -->
+  <g fill="#ffffff" stroke="#2f6fb0" stroke-width="0.3"><rect x="63" y="46.5" width="4" height="6.5"/><rect x="73" y="46.5" width="4" height="6.5"/></g>
+  <text x="70" y="50.4" class="sb" text-anchor="middle">VOID</text>
+  <text x="70" y="52.4" class="s" text-anchor="middle">escalators</text>
+  <g class="cv"><rect x="82" y="46" width="6" height="5"/></g>
+  <text x="81.6" y="45.6" class="s">duty free</text>
+  <text x="41" y="55.2" class="sb">GATE 12</text>
+  <text x="61" y="45.6" class="sb">GATE 13</text>
+  <text x="95" y="54.6" class="sb">GATE 14 LOUNGE (above make-up)</text>
+  <text x="122" y="51" class="sb" text-anchor="end">stair ↓</text>
+  <text x="41" y="67.2" class="sb">MEZZ FOOD COURT +5 m · balcony</text>
+  <line x1="40" y1="68" x2="84" y2="68" stroke="#2f6fb0" stroke-width="0.7"/>
+  <text x="44.5" y="49" class="sb">stair ↕</text>
+
+  <!-- ===== LANDSIDE CURB ===== -->
+  <rect x="22" y="86" width="104" height="2.4" fill="#c6c0b0"/>
+  <rect x="50" y="89" width="28" height="6" fill="#f08a24" fill-opacity="0.9"/>
+  <text x="64" y="92.8" class="t" text-anchor="middle" style="fill:#fff">ALPHA SPAWN</text>
+  <g class="cv"><rect x="84" y="89.5" width="12" height="3"/><rect x="28" y="90" width="4" height="2"/><rect x="34" y="90" width="4" height="2"/><rect x="104" y="90" width="4" height="2"/></g>
+  <text x="84" y="95.2" class="s">airport bus</text><text x="28" y="94.8" class="s">taxi rank</text>
+  <text x="98" y="95.2" class="t" style="font-size:1.9px">DEPARTURES CURB</text>
+  <rect x="2" y="88" width="16" height="7" fill="#b8b2a3"/>
+  <text x="3" y="92.2" class="s">car-park ramp (blocked)</text>
+  <text x="3" y="49" class="t" style="font-size:2px">CARGO YARD</text>
+  <g class="cv"><rect x="5" y="36" width="3" height="11"/><rect x="25" y="42" width="6" height="2.6"/><rect x="29" y="49" width="2.6" height="6"/><rect x="12" y="52" width="2" height="2"/></g>
+  <text x="9" y="40" class="s">semi-trailer</text>
+  <text x="23.5" y="41" class="s">ULD stack</text>
+  <text x="23" y="62.2" class="s">staff yard</text>
+
+  <!-- ===== DOORS ===== -->
+  <g class="door">
+    <rect x="33.5" y="16.5" width="1" height="3"/>
+    <rect x="6.5" y="31.5" width="3" height="1"/><rect x="16.5" y="31.5" width="3" height="1"/><rect x="26.5" y="31.5" width="3" height="1"/>
+    <rect x="56" y="23.5" width="16" height="1"/>
+    <rect x="45.5" y="12.5" width="1" height="3"/><rect x="81.5" y="12.5" width="1" height="3"/>
+    <rect x="46.5" y="43.5" width="3" height="1"/><rect x="39.5" y="49" width="1" height="3"/>
+    <rect x="77" y="43.5" width="3" height="1"/>
+    <rect x="46" y="63.5" width="3" height="1"/><rect x="46" y="55.5" width="3" height="1"/>
+    <rect x="56" y="63.5" width="26" height="1"/>
+    <rect x="57" y="53.5" width="26" height="1"/>
+    <rect x="91" y="43.5" width="3" height="1"/><rect x="119" y="43.5" width="3" height="1"/>
+    <rect x="121" y="61.5" width="3" height="1"/>
+    <rect x="83.5" y="71" width="1" height="6"/>
+    <rect x="101" y="85.5" width="6" height="1"/>
+    <rect x="29" y="85.5" width="4" height="1"/><rect x="48" y="85.5" width="4" height="1"/><rect x="67" y="85.5" width="4" height="1"/>
+    <rect x="21.5" y="76.5" width="1" height="3"/>
+    <rect x="10.5" y="57.5" width="3" height="1"/><rect x="10.5" y="85.5" width="3" height="1"/>
+  </g>
+
+  <!-- ===== MISSION-ONLY SHUTTERS ===== -->
+  <line x1="56" y1="64" x2="82" y2="64" class="shut"/>
+  <line x1="76" y1="68" x2="80" y2="68" class="shut"/>
+  <line x1="83.5" y1="71" x2="83.5" y2="77" class="shut"/>
+
+  <!-- ===== SERVICE TUNNEL (L-1, -4.5 m) ===== -->
+  <g fill="none" stroke="#9b4fc4" stroke-width="0.45" stroke-dasharray="1.2 0.6">
+    <rect x="28" y="68" width="10" height="9"/>
+  </g>
+  <path d="M12,72.5 H28 M38,72.5 H51 V61" class="lane" stroke="#9b4fc4" stroke-dasharray="1.2 0.8" marker-start="url(#aT)" marker-end="url(#aT)"/>
+  <text x="29" y="71" class="s" style="fill:#7d3aa3;font-weight:700">ELECTRICAL</text>
+  <text x="29" y="72.8" class="s" style="fill:#7d3aa3">“SPARKS” −4.5 m</text>
+  <text x="13" y="71.4" class="s" style="fill:#7d3aa3">tunnel</text>
+
+  <!-- ===== LANES ===== -->
+  <path d="M58,91.5 H26 L12,86 V58 L18,46 V33 L30,20 L45.5,14 L56,7" class="lane" stroke="#2e9e57" marker-end="url(#aG)"/>
+  <path d="M60,89 L52,86 L60,75 L69,64 V54 L54,50 L48,44 L58,33 L64,24 V11" class="lane" stroke="#d18f00" marker-end="url(#aC)"/>
+  <path d="M68,86 L78,77 V68 L82,60 L88,53" class="lane" stroke="#d18f00" stroke-dasharray="1.4 1"/>
+  <path d="M70,91 L104,88 L104,66 L101,46 L94,38 L90,24 L82,14 L72,7" class="lane" stroke="#2f7fd8" marker-end="url(#aE)"/>
+  <path d="M95,50 L95,42 L104,37 L104,11 L99,12 L91,14" class="lane" stroke="#2f7fd8" stroke-dasharray="1.4 1"/>
+
+  <!-- ===== SIGHTLINES ===== -->
+  <line x1="100" y1="5" x2="100" y2="43" class="sl"/><text x="100.6" y="8" class="s" style="fill:#c02f2f">38 m</text>
+  <line x1="24" y1="84" x2="80" y2="66" class="sl"/><text x="25" y="82.6" class="s" style="fill:#c02f2f">58 m diag — broken by islands</text>
+  <line x1="64" y1="23" x2="64" y2="44" class="sl"/><text x="64.6" y="27.5" class="s" style="fill:#c02f2f">21 m</text>
+
+  <!-- ===== POWER POSITIONS ===== -->
+  <g class="pp">
+    <path d="M66,66.6 l0.7,1.4 1.5,0.2 -1.1,1 0.3,1.5 -1.4,-0.7 -1.4,0.7 0.3,-1.5 -1.1,-1 1.5,-0.2z" transform="translate(0,-2)"/>
+    <path d="M79.5,17 l0.7,1.4 1.5,0.2 -1.1,1 0.3,1.5 -1.4,-0.7 -1.4,0.7 0.3,-1.5 -1.1,-1 1.5,-0.2z"/>
+    <path d="M72,42.6 l0.7,1.4 1.5,0.2 -1.1,1 0.3,1.5 -1.4,-0.7 -1.4,0.7 0.3,-1.5 -1.1,-1 1.5,-0.2z"/>
+    <path d="M8,10 l0.7,1.4 1.5,0.2 -1.1,1 0.3,1.5 -1.4,-0.7 -1.4,0.7 0.3,-1.5 -1.1,-1 1.5,-0.2z"/>
+    <path d="M96,17 l0.7,1.4 1.5,0.2 -1.1,1 0.3,1.5 -1.4,-0.7 -1.4,0.7 0.3,-1.5 -1.1,-1 1.5,-0.2z"/>
+  </g>
+
+  <!-- ===== MISSION STEPS ===== -->
+  <g>
+    <circle cx="36" cy="66.5" r="1.3" class="mis"/><text x="36" y="67.1" class="misn">1</text>
+    <circle cx="42.2" cy="62.4" r="1.3" class="mis"/><text x="42.2" y="63" class="misn">2</text>
+    <circle cx="88" cy="50.5" r="1.3" class="mis"/><text x="88" y="51.1" class="misn">3</text>
+    <circle cx="110" cy="33" r="1.3" class="mis"/><text x="110" y="33.6" class="misn">4</text>
+    <circle cx="52" cy="8" r="1.3" class="mis"/><text x="52" y="8.6" class="misn">5</text>
+  </g>
+
+  <!-- compass + scale -->
+  <g transform="translate(124,-30)">
+    <path d="M0,-3 L1.5,2 L0,1 L-1.5,2 Z" fill="#22252a"/><text x="0" y="5" class="s" text-anchor="middle">N</text>
+  </g>
+  <g transform="translate(2,100)">
+    <rect x="0" y="0" width="10" height="0.8" fill="#22252a"/><rect x="10" y="0" width="10" height="0.8" fill="#fff" stroke="#22252a" stroke-width="0.2"/>
+    <text x="0" y="3" class="s">0</text><text x="9.4" y="3" class="s">10</text><text x="19" y="3" class="s">20 m</text>
+  </g>
+
+  <!-- ===== LEGEND ===== -->
+  <g transform="translate(28,99)">
+    <text x="0" y="1" class="t">LAST CALL — Port Calder International (PCX) · layout v1 · playable 128 × 96 m</text>
+    <rect x="0" y="3" width="3" height="2" class="z"/><text x="4" y="4.7" class="s">indoor, ground L0</text>
+    <rect x="20" y="3" width="3" height="2" class="up"/><text x="24" y="4.7" class="s">upper L1 (+5 m)</text>
+    <rect x="40" y="3" width="3" height="2" fill="none" stroke="#9b4fc4" stroke-width="0.4" stroke-dasharray="1 0.5"/><text x="44" y="4.7" class="s">underground L−1</text>
+    <rect x="62" y="3" width="3" height="2" class="cv"/><text x="66" y="4.7" class="s">cover / props</text>
+    <rect x="80" y="3.4" width="3" height="1.2" class="door"/><text x="84" y="4.7" class="s">door / opening</text>
+    <line x1="0" y1="8" x2="4" y2="8" stroke="#2e9e57" stroke-width="0.7"/><text x="5" y="8.6" class="s">west lane (cargo)</text>
+    <line x1="22" y1="8" x2="26" y2="8" stroke="#d18f00" stroke-width="0.7"/><text x="27" y="8.6" class="s">center lane (terminal)</text>
+    <line x1="47" y1="8" x2="51" y2="8" stroke="#2f7fd8" stroke-width="0.7"/><text x="52" y="8.6" class="s">east lane (baggage / aircraft)</text>
+    <line x1="76" y1="8" x2="80" y2="8" stroke="#d23c3c" stroke-width="0.9"/><text x="81" y="8.6" class="s">shutter (mission only)</text>
+    <path d="M1,11 l0.7,1.4 1.5,0.2 -1.1,1 0.3,1.5 -1.4,-0.7 -1.4,0.7 0.3,-1.5 -1.1,-1 1.5,-0.2z" class="pp"/><text x="4" y="12.9" class="s">power position (each has 2+ counters)</text>
+    <line x1="40" y1="12.2" x2="44" y2="12.2" class="sl"/><text x="45" y="12.9" class="s">key sightline</text>
+    <circle cx="62" cy="12.2" r="1" class="mis"/><text x="64" y="12.9" class="s">mission step 1–5</text>
+    <text x="0" y="16.4" class="s">dashed lane = alternate route (mezz / jet bridge → cabin → airstair)</text>
+  </g>
+</svg>

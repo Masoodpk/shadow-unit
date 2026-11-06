@@ -74,11 +74,15 @@ for (const node of doc.getRoot().listNodes()) {
   }
 }
 
-// bounds of the solid geometry
+// bounds of the solid geometry — of the triangles kept, not every vertex in their buffers (a cropped
+// mesh can share its vertices with scenery a kilometre away)
 let min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-for (const t of tris.solid) for (let i = 0; i < t.P.length; i += 3) for (let k = 0; k < 3; k++) {
-  min[k] = Math.min(min[k], t.P[i + k]);
-  max[k] = Math.max(max[k], t.P[i + k]);
+for (const t of tris.solid) for (let j = 0; j < t.ia.length; j++) {
+  const i = t.ia[j] * 3;
+  for (let k = 0; k < 3; k++) {
+    min[k] = Math.min(min[k], t.P[i + k]);
+    max[k] = Math.max(max[k], t.P[i + k]);
+  }
 }
 min = min.map((v) => Math.floor(v / VS) * VS - VS * 2);
 max = max.map((v) => Math.ceil(v / VS) * VS + VS * 2);

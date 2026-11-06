@@ -11,10 +11,11 @@ import frostlineThumb from "./assets/thumbs/frostline.webp?url";
 import sandstormThumb from "./assets/thumbs/sandstorm.webp?url";
 import whiteoutThumb from "./assets/thumbs/whiteout.webp?url";
 import metroThumb from "./assets/thumbs/metro.webp?url";
+import airportThumb from "./assets/thumbs/airport.webp?url";
 import { TOUCH_LABELS, TouchControls, isTouchDevice } from "./ui/TouchControls";
 
 /** stage thumbnails: real renders of each stage */
-const THUMBS: Record<StageId, string> = { office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, nightshift: nightshiftThumb, whiteout: whiteoutThumb };
+const THUMBS: Record<StageId, string> = { office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, nightshift: nightshiftThumb, airport: airportThumb, whiteout: whiteoutThumb };
 
 /**
  * Boot flow (plain DOM, so it shows before the engine is parsed):

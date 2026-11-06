@@ -56,6 +56,23 @@ export class ShotPlayer {
     else this.start();
   }
 
+  /**
+   * The player skipped it: whatever the rest of the shots set going still happens (each later shot's
+   * `enter`, every cue not yet fired, in order), then the ending, as if it had played out.
+   */
+  skip() {
+    if (!this.active) return;
+    const shots = this.shots;
+    const s = shots[this.i];
+    if (s.cue && !this.cued) s.cue[1]();
+    for (let k = this.i + 1; k < shots.length && this.shots === shots; k++) {
+      shots[k].enter?.();
+      shots[k].cue?.[1]();
+    }
+    // (a cue or enter may itself have ended it, or started another)
+    if (this.shots === shots && this.active) this.finish();
+  }
+
   /** stop without its ending (a restart): the camera goes back */
   stop() {
     if (!this.active) return;

@@ -45,8 +45,14 @@ export class MissionHud {
     this.bars = el("ms-bars", this.root);
     el("ms-bar top", this.bars);
     el("ms-bar bottom", this.bars);
-    this.skip = el("ms-skip", this.root);
+    // (a button: Space / F skips too, and on a touch screen it's the way to)
+    this.skip = el("ms-skip", this.root, "button");
     this.skip.innerHTML = `<b>${bindings.label("jump")}</b> SKIP`;
+    this.skip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.onSkip?.();
+    });
     this.way = el("ms-way", this.root);
     el("ms-diamond", this.way);
     this.wayLabel = el("ms-way-label", this.way, "span");
@@ -96,6 +102,9 @@ export class MissionHud {
     this.cardEl.classList.add("on");
     this.cardT = dur;
   }
+
+  /** the SKIP button was pressed (the game decides what skipping the cinematic on screen means) */
+  onSkip?: () => void;
 
   letterbox(on: boolean, skippable: boolean) {
     this.bars.classList.toggle("on", on);

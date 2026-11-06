@@ -63,6 +63,7 @@ import { buildVectorRig, loadVectorContainer } from "../weapons/VectorRig";
 import { ThrowingKnives, makeKnifeTemplate } from "../fx/ThrowingKnives";
 import { MpClient, type MpSettings } from "../net/MpClient";
 import { buildOffice2 } from "../level/Office2";
+import { buildAirport } from "../level/Airport";
 import { buildCarbineRig, loadCarbineContainer } from "../weapons/CarbineRig";
 import { buildGrenadeRig, loadFlashbangContainer } from "../weapons/GrenadeRig";
 import { buildKnifeRigFP, loadKnifeFPContainer } from "../weapons/KnifeRigFP";
@@ -154,10 +155,17 @@ export class Game {
    * An ally's entrance (Spider-Man on his container, Iron Man out of the sky): letterboxed, your
    * view turns to follow them; the fight holds. When it ends, you're looking where it left you.
    */
+  /** the cinematic on screen, skipped: an entrance, the Hulk's landing, or a mission's shots */
+  private skipCinematic() {
+    if (this.director.active) return void this.director.current()?.actor.skip?.();
+    if (this.hulk?.cinematic) return this.hulk.skipIntro();
+    this.mission?.skipCinematic();
+  }
+
   private allyCinematic(on: boolean, dt: number) {
     const hud = this.hulk?.hud;
     if (on && !this.allyCineOn) {
-      hud?.letterbox(true, false);
+      hud?.letterbox(true, true);
       this.cineFov = this.player.camera.fov;
       this.weapons.viewmodel.base.setEnabled(false);
       this.cineCut = true;
@@ -1075,6 +1083,9 @@ export class Game {
   private team = new TeamBoard();
   /** an ally's entrance was playing last frame (the camera's on them) */
   private allyCineOn = false;
+  /** a cinematic's SKIP button was pressed (handled in the frame update); how long the current one has been on */
+  private cineSkipAsked = false;
+  private cineT = 0;
   /** seconds until he comes in (-1: not yet due) */
   private hulkDue = -1;
   /** slow motion (mission cinematics) */
@@ -1138,7 +1149,7 @@ export class Game {
 
     // soldier characters download while the level and weapons are built
     // (the Underground's soldiers are its own: the Polish soldier, the soldier girl, the Winter Soldier)
-    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
+    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" || this.settings.stage === "airport" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
     // (online: no missions — no hostage, no tape deck, no Winter Soldier; the map and the guns)
     const hostageP = this.settings.stage === "dust2" && !this.settings.mp ? HostageModel.load(scene) : null;
     const stationP = this.settings.stage === "office" && !this.settings.mp ? StationModel.load(scene) : null;
@@ -1184,6 +1195,8 @@ export class Game {
         ? await buildOffice(scene, this.env, loadBar)
         : info.id === "nightshift"
           ? await buildOffice2(scene, this.env, loadBar)
+        : info.id === "airport"
+          ? await buildAirport(scene, this.env, loadBar)
         : info.id === "dust2"
           ? await buildDust2(scene, this.env, this.mats, low, loadBar)
           : info.id === "metro"
@@ -2191,6 +2204,10 @@ export class Game {
     this.hud.show(true);
     this.setState("playing");
     this.mission?.start();
+    // the cinematics' SKIP buttons (the mission's, the Hulk's — whose HUD the heroes' entrances use too)
+    const askSkip = () => (this.cineSkipAsked = true);
+    if (this.mission) this.mission.hud.onSkip = askSkip;
+    if (this.hulk) this.hulk.hud.onSkip = askSkip;
   }
 
   pause() {
@@ -2344,6 +2361,10 @@ export class Game {
       // (Frostline's tape: they stand stock still while it plays, mid-fight or not, then carry on)
       this.enemies.aiMode = this.mission instanceof TapeMission && this.mission.holdStill ? "FROZEN" : "PASSIVE";
     if (this.state === "playing") this.allyCinematic(allyCine, dt);
+    // skipping a cinematic: its button, or Space / F (a moment in, so a jump as it starts doesn't skip it)
+    this.cineT = cine ? this.cineT + rawDt : 0;
+    if (cine && this.cineT > 0.4 && (this.cineSkipAsked || (!allyCine && (this.input.hit("jump") || this.input.hit("use"))))) this.skipCinematic();
+    this.cineSkipAsked = false;
 
     // effects tick first so anything spawned this frame is rendered at least once
     this.fx.update(dt);

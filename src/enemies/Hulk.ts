@@ -440,7 +440,7 @@ export class Hulk implements Foe, Combatant {
     this.go("inbound");
     // the jump's airborne frames, stretched over the whole flight
     this.playFrom(CLIP.entrance, JUMP_AIR[0], (JUMP_AIR[1] - JUMP_AIR[0]) / this.arc.dur);
-    this.hud.letterbox(true, false);
+    this.hud.letterbox(true, true);
     // something huge falling out of the sky: air tearing past, louder and higher as it comes
     h.audio.play("hulkIncoming", { volume: 1 });
     return true;
@@ -823,6 +823,17 @@ export class Hulk implements Foe, Combatant {
     cam.rotation.y += dy * a;
     cam.rotation.x += (pitch - cam.rotation.x) * a;
     cam.rotation.z = 0;
+  }
+
+  /** the player skipped his entrance: he's down and ready, and the fight is on */
+  skipIntro() {
+    if (!this.cinematic) return;
+    if (this.state === "inbound") {
+      this.flight(1);
+      this.land(1.4, 0);
+    }
+    if (this.intro) this.endIntro();
+    this.go("chase");
   }
 
   private endIntro() {

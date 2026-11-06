@@ -341,7 +341,9 @@ h2 { margin: 0; font-size: 56px; font-weight: 700; letter-spacing: 0.02em; }
 .ms-bars .bottom { bottom: 0; }
 .ms-bars.on .ms-bar { height: 11vh; }
 .ms-skip { position: absolute; right: 3vw; bottom: 3.6vh; font: 600 12px var(--mono); letter-spacing: 0.18em; color: var(--bone-dim); opacity: 0; transition: opacity 0.4s; }
-.ms-skip.on { opacity: 1; }
+.ms-skip { background: none; border: 0; cursor: pointer; pointer-events: none; padding: 6px 4px; }
+.ms-skip.on { opacity: 1; pointer-events: auto; }
+.ms-skip.on:hover { color: var(--bone); }
 .ms-skip b { color: var(--bone); border: 1px solid var(--bone-dim); padding: 1px 6px; margin-right: 8px; }
 
 /* radio lines: a small mono readout on a dark strip, like a comms log */
