@@ -32,6 +32,7 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 - **Cargo racks flickered:** the shelf boards shared the exact front and end faces of the yellow uprights and z-fought into jagged black/coral bands. The uprights now stand 3 cm proud on every side.
 - **White slab on the customs stair:** a tunnel ceiling light panel hung 0.28 m above one of the stair's steps. `fittings()` now never puts a panel (or its baked lamp) over any stair footprint.
 - Preview views for all of these: `pcx_render.py --views v_bus,v_taxi,v_stair,v_fuel,v_semi,v_fork,v_rack,v_custairs`.
+- **Underground: shot through the wall between the tracks.** The voxeliser keeps only voxels near walkable floor, so the long tiled wall between the main platforms' two tracks (beyond the unwalkable track trenches) wasn't in the collision boxes at all: soldiers on one platform saw and shot you on the other, and you heard them with no one in view. `SEALS` in `level/Metro.ts` fills the wall's hollow core with one solid box (sight, bullets, movement). A leak test (rays between every pair of nav nodes 3–45 m apart that the boxes let through but the drawn station blocks) went from 10,226 hits to 84, all grazes under 30 cm at slab edges.
 
 ## Slide, and the Sandstorm lockers (November 3)
 

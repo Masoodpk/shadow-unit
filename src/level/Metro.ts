@@ -94,6 +94,20 @@ const HOARDINGS: HoardingSpec[] = [
   { at: new Vector3(39.35, 3.0, -27.55), facing: new Vector3(-1, 0, 0), width: 4.4, height: 3.4, dressing: false, notice: ["NO EXIT", "Station closed"] },
 ];
 
+/**
+ * Solid walls the voxeliser dropped (minX, minY, minZ, maxX, maxY, maxZ, Babylon metres). Its mask keeps
+ * only voxels near floor you can walk on, so a wall standing beyond an unwalkable track trench was cut
+ * away: soldiers on one platform saw and shot you through it, and you heard them with no one in view.
+ * Each seal fills the wall's hollow core (a few cm inside its drawn faces), so sight, bullets and
+ * movement stop at the wall you see. Found by the leak test: rays between nav nodes that the boxes let
+ * through but the drawn station blocks.
+ */
+const SEALS: [number, number, number, number, number, number][] = [
+  // the wall between the main platforms' two tracks: tiled faces at z −4.78 and −8.18, x −32.6 … 34.6,
+  // from the track bed to the ceiling
+  [-32.6, -3.2, -8.15, 34.6, 2.55, -4.81],
+];
+
 /** who's where (x0, z0, x1, z1 and the floor's height range — the levels overlap in plan): the
  * platforms awake from the start; the concourse, the deep platform and his guard asleep till you get there */
 const ZONES: { group: string; rect: [number, number, number, number]; y: [number, number]; n: number; dormant: boolean }[] = [
@@ -142,7 +156,7 @@ export async function buildMetro(scene: Scene, env: Environment, mats: Materials
 
   // ---------------------------------------------------------------- navigation (first: the invisible
   // walls are trimmed against its links, its island bridges included)
-  const solid = Float32Array.from(data.solid);
+  const solid = Float32Array.from([...data.solid, ...SEALS.flat()]);
   const soft = Float32Array.from(data.soft);
   const boxesWith = (clipBoxes: Float32Array) => {
     const nb = solid.length / 6, ns = soft.length / 6, nc = clipBoxes.length / 6;
