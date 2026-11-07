@@ -64,6 +64,7 @@ import { ThrowingKnives, makeKnifeTemplate } from "../fx/ThrowingKnives";
 import { MpClient, type MpSettings } from "../net/MpClient";
 import { buildOffice2 } from "../level/Office2";
 import { buildAirport } from "../level/Airport";
+import { buildRailway } from "../level/Railway";
 import { buildCarbineRig, loadCarbineContainer } from "../weapons/CarbineRig";
 import { buildGrenadeRig, loadFlashbangContainer } from "../weapons/GrenadeRig";
 import { buildKnifeRigFP, loadKnifeFPContainer } from "../weapons/KnifeRigFP";
@@ -1149,7 +1150,7 @@ export class Game {
 
     // soldier characters download while the level and weapons are built
     // (the Underground's soldiers are its own: the Polish soldier, the soldier girl, the Winter Soldier)
-    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" || this.settings.stage === "airport" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
+    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" || this.settings.stage === "airport" || this.settings.stage === "railway" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
     // (online: no missions — no hostage, no tape deck, no Winter Soldier; the map and the guns)
     const hostageP = this.settings.stage === "dust2" && !this.settings.mp ? HostageModel.load(scene) : null;
     const stationP = this.settings.stage === "office" && !this.settings.mp ? StationModel.load(scene) : null;
@@ -1197,6 +1198,8 @@ export class Game {
           ? await buildOffice2(scene, this.env, loadBar)
         : info.id === "airport"
           ? await buildAirport(scene, this.env, loadBar)
+        : info.id === "railway"
+          ? await buildRailway(scene, this.env, loadBar)
         : info.id === "dust2"
           ? await buildDust2(scene, this.env, this.mats, low, loadBar)
           : info.id === "metro"

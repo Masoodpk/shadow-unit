@@ -88,6 +88,8 @@ export const SKY_DUSK: SkyPalette = { horizon: V(1.0, 0.6, 0.38), band: V(0.62, 
 export const SKY_DESERT: SkyPalette = { horizon: V(0.9, 0.86, 0.78), band: V(0.62, 0.74, 0.88), zenith: V(0.18, 0.38, 0.68), sun: V(1.0, 0.93, 0.78), cloudLit: V(1.0, 0.98, 0.94), cloudShade: V(0.7, 0.72, 0.76), below: V(0.62, 0.56, 0.46) };
 /** a cold winter afternoon: pale grey-white horizon, thin high cloud, a weak white sun */
 export const SKY_WINTER: SkyPalette = { horizon: V(0.82, 0.86, 0.92), band: V(0.66, 0.74, 0.84), zenith: V(0.3, 0.44, 0.62), sun: V(1.0, 0.96, 0.9), cloudLit: V(0.98, 0.99, 1.0), cloudShade: V(0.66, 0.7, 0.78), below: V(0.78, 0.82, 0.88) };
+/** a soft, hazy late-morning sky over an old city (TERMINUS) */
+export const SKY_HAZE: SkyPalette = { horizon: V(0.86, 0.85, 0.82), band: V(0.7, 0.76, 0.84), zenith: V(0.36, 0.5, 0.72), sun: V(1.0, 0.93, 0.8), cloudLit: V(1.0, 0.98, 0.94), cloudShade: V(0.74, 0.75, 0.78), below: V(0.48, 0.46, 0.44) };
 export const SKY_MOUNTAIN: SkyPalette = { horizon: V(0.8, 0.84, 0.88), band: V(0.58, 0.68, 0.8), zenith: V(0.2, 0.36, 0.58), sun: V(0.9, 0.8, 0.6), cloudLit: V(1.0, 0.98, 0.95), cloudShade: V(0.62, 0.66, 0.72), below: V(0.52, 0.56, 0.6) };
 
 export function createSkyMaterial(scene: Scene, sunDirection: Vector3, palette: SkyPalette = SKY_DUSK) {

@@ -1,5 +1,5 @@
 /** Playable stages. The menu lists them; the game builds the chosen one at load. */
-export type StageId = "office" | "dust2" | "metro" | "nightshift" | "airport" | "whiteout";
+export type StageId = "office" | "dust2" | "metro" | "nightshift" | "airport" | "railway" | "whiteout";
 
 export interface StageInfo {
   id: StageId;
@@ -77,6 +77,18 @@ export const STAGES: StageInfo[] = [
     description: "The Black Ledger paymaster is running. His charter is boarding at Gate 14, and the cell has locked the airport down to cover him. Go in from the departures curb, fight through check-in and security to the gate, and clear the terminal, the hangar and the jet itself.",
     objective: "CLEAR THE AIRPORT",
     tag: "22 HOSTILES · INTERNATIONAL AIRPORT",
+    ambience: "none",
+    lit: false,
+    snow: false,
+  },
+  {
+    id: "railway",
+    name: "TERMINUS",
+    kicker: "OPERATION // TERMINUS",
+    location: "Port Calder Central, late morning",
+    description: "The cell has seized Port Calder Central, the old Victorian terminus, with the trains still standing at the platforms. Its people hold the station from the forecourt to the engine shed: the booking hall and galleries, the iron footbridges over the tracks, the tiled subway and the underground platform below, the control room and the yards. Go in from the forecourt and clear the whole station.",
+    objective: "CLEAR THE STATION",
+    tag: "26 HOSTILES · RAILWAY TERMINAL",
     ambience: "none",
     lit: false,
     snow: false,

@@ -4,3 +4,4 @@ dist-single
 *.log
 server/node_modules
 scripts/airport/out/
+scripts/railway/out/

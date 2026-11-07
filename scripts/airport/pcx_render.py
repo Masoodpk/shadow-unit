@@ -50,6 +50,13 @@ VIEWS = {
     "v_rack": ((33, 14.2, EYE), (20, 17, 1.6), 18),
     "v_custairs": ((15.5, 72.5, -4.5 + EYE), (8, 72.5, -2.0), 18),
 }
+# --viewset=<file.py>: another map's views (its VIEWS dict, and PLAN = (centre x, y, ortho scale) for "plan")
+PLAN = (64, 48, 140)
+if opt.get("viewset"):
+    import runpy
+    _vs = runpy.run_path(opt["viewset"])
+    VIEWS = _vs["VIEWS"]
+    PLAN = _vs.get("PLAN", PLAN)
 want = opt.get("views", ",".join(VIEWS)).split(",")
 
 sc = bpy.context.scene
@@ -138,8 +145,8 @@ for name in want:
     v = VIEWS[name]
     if v is None:
         cam_data.type = "ORTHO"
-        cam_data.ortho_scale = 140
-        cam.location = B(64, 48, 200)
+        cam_data.ortho_scale = PLAN[2]
+        cam.location = B(PLAN[0], PLAN[1], 200)
         cam.rotation_euler = (0, 0, 0)
         sc.render.resolution_y = int(RES * 96 / 128 * 1.05)
     else:

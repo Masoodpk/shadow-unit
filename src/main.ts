@@ -12,11 +12,12 @@ import sandstormThumb from "./assets/thumbs/sandstorm.webp?url";
 import whiteoutThumb from "./assets/thumbs/whiteout.webp?url";
 import metroThumb from "./assets/thumbs/metro.webp?url";
 import airportThumb from "./assets/thumbs/airport.webp?url";
+import railwayThumb from "./assets/thumbs/railway.webp?url";
 import { TOUCH_LABELS, TouchControls, isTouchDevice } from "./ui/TouchControls";
 import { Armory } from "./ui/Armory";
 
 /** stage thumbnails: real renders of each stage */
-const THUMBS: Record<StageId, string> = { office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, nightshift: nightshiftThumb, airport: airportThumb, whiteout: whiteoutThumb };
+const THUMBS: Record<StageId, string> = { office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, nightshift: nightshiftThumb, airport: airportThumb, railway: railwayThumb, whiteout: whiteoutThumb };
 
 /**
  * Boot flow (plain DOM, so it shows before the engine is parsed):

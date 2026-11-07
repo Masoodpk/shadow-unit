@@ -21,6 +21,32 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 
 ---
 
+## TERMINUS restyled: a Victorian terminus, old trains (November 7)
+
+The first build read like LAST CALL (the airport's glass vaults, tree columns, terrazzo, teal seats, security lanes, escalators). TERMINUS is now a Victorian station on exactly the same layout: every floor, track, stair, doorway, spawn and route is where it was. Plan and the gameplay notes: `docs/railway/HERITAGE-plan.md`.
+
+- **Train sheds:** three arched wrought-iron roofs: lattice-girder ribs every 10 m, slate on the haunches over timber boarding, glass over the crowns, tie rods; fan-glazed gable screens over a saw-tooth timber valance; fluted cast-iron columns with scrolled brackets.
+- **Station building:** red brick on a stone plinth, two storeys of arched sash windows, three arched entrances with fanlights, "PORT CALDER CENTRAL" in cast letters, a clock tower (four faces, slated spire, about 38 m), an iron-and-glass entrance canopy. **Booking hall:** stone columns, a mahogany booking office with arched brass-grilled windows, a flap departure board, encaustic tiles, panelling, pendant lanterns, ticket barriers with collectors' booths (in place of the security lanes), grand stone stairs (in place of the escalators), tea rooms.
+- **Platforms:** stone flags and coping, gas-lamp standards, wooden benches with iron ends, barrows with trunks and churns, train indicator boards, enamel signs, a timber waiting room on each island (you can go in), water cranes, hanging clocks, semaphore signals (the overhead line is gone). **Footbridges:** lattice girders (a solid iron plate to 1.1 m for crouch cover, open lattice above: it stops you, not bullets), timber decks, slated roofs. Iron balustrades everywhere work the same way.
+- **Underground:** cream glazed tiles with a dark green band, flagstones, iron columns, globe lamps.
+- **Outside:** a brick goods shed and warehouse with crates, sacks and barrels (in the containers' footprints), a brick engine shed with arched entrances, a coal stage and sleeper stacks, setts, period motor cars, cabs and omnibuses, a brick road bridge, a stone tunnel portal, a Victorian city of terraces, chimneys, a church spire and a gasholder.
+- **Trains** (the bullet trains and their file are gone): a green steam express (procedural 4-6-0 with its tender) and two coaches at platform 1; **a walk-through saloon train at platform 2 with every door open on both sides and footboards down to the track bed**, so you can climb in from the tracks, walk through and step out onto the platform (the soldiers use it too); the user's three Sketchfab models, prepared once by `scripts/railway/prep_models.py` (decimated to 24k / 22k / 6k triangles): the **Soviet armoured locomotive** heading the goods train (“Soviet armoured train locomotive” by Nadir Alishly), an **InterCity 125 power car** at platform 4 (“Train - Intercity 125 Executive with buffers” by timblewee) and **old coaches** at platforms 3 and 4 (“Train Wagon” by 3ddominator), all CC BY 4.0; a steam breakdown crane and a tank engine at the depot.
+- **Light:** a soft, hazy late morning (sun from the south-east, 40° up), warm lamps in about 400 lanterns; a new `SKY_HAZE`. Textures: Poly Haven scans (CC0) for brick, stone, setts, flags, encaustic tiles, slate, iron and wood, calibrated by `scripts/railway/textures.mjs`, which also generates the glazed tiles.
+- **Fixed:** the regional train's jagged black streaks (its floor shared the body side's outer face; floors are now inset).
+- **Changes to play:** the galleries' and footbridges' open ironwork lets bullets through where the glass used to; the brick façade has fewer sightlines than the glass wall; the overhead-line masts' thin cover between the tracks is gone (signals and water cranes stand at the platform ends); the new route through the saloon train.
+
+## New stage: TERMINUS — Port Calder Central (November 7)
+
+An original railway-terminal map, built in Blender from scripts like LAST CALL (`scripts/railway/`, `sh scripts/railway/build_all.sh`; concept, blueprint and every phase in `docs/railway/`).
+
+- **The station:** a glazed triple barrel-vault train shed (white steel arches, tree columns) over six tracks and four platforms, with tactile edges, ramps down to the track bed at both ends, overhead line equipment and signals. Two glazed footbridges at +7 with stairs to the islands; galleries on both sides.
+- **Station building:** a double-height lobby under a glass lantern, ticket counters and machines, an information desk under the departures board, security gateways, shops, a food court, an admin floor. **North building:** the control room, offices, staff rooms.
+- **Trains:** three bullet trains (“Bullet Train” by Hadley Anand Kumar S, Sketchfab, CC BY 4.0, from the user's file) as solid cover; a walk-through 3-car regional train at platform 2 and a 2-car metro train underground (seat bays, gangways, breakable windows, open doors); a freight train, a maintenance vehicle and a shunter.
+- **Underground:** the subway under every platform, electrical and ventilation rooms, an emergency stair, the metro platform under the lobby (tunnels boarded).
+- **Outside:** the goods yard (warehouse, goods shed, containers), the depot (inspection shed, workshops), the forecourt with buses and taxis, a car park, a park and the CALDER WAY road bridge over the throat.
+- **Light:** a baked midday sun through the glass and about 290 lamps (`rws_bake.py`); drawn unlit like LAST CALL. 323k triangles, 136 meshes, a 14.8 MB glb.
+- **Play:** 26 soldiers by zone (hall 7, station 4, galleries 4, underground 4, north building, yards, depot, city); the nav graph is one network (5,813 nodes) with walks added up every stair and down both trains' aisles (`STITCH` in `level/Railway.ts`); a sight-leak test (70,000 rays) found no see-through walls. Online: FFA and TDM (`server/server.mjs`).
+
 ## Armory, per-gun damage, and Last Call fixes (November 7)
 
 - **ARMORY** (main menu and pause menu, `ui/Armory.ts`): every weapon and throwable, grouped by kind, with its role, where you get it (starting kit or supply cache), its carry slot and what it swaps with, six stat bars, the exact numbers (damage per round, head and limb damage, fire rate, magazine, reload, range and falloff), and how many hits put a soldier down on the current difficulty with the time to kill. It reads `config/weapons.ts` directly, so it can't drift from the game. Arrow keys move the selection; at phone width the list becomes a strip.

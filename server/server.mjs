@@ -41,7 +41,7 @@ const MAX_HITS_PER_S = 30;
 const MAX_RANGE = 260;
 const KINDS = ["swat", "fsb", "mark"];
 /** the maps a room can be on (every stage but the Heroes Playground); a room keeps the one it was made with */
-const STAGES = ["nightshift", "dust2", "office", "metro", "airport"];
+const STAGES = ["nightshift", "dust2", "office", "metro", "airport", "railway"];
 const asStage = (s) => (STAGES.includes(s) ? s : STAGES[0]);
 /** "ffa": everyone against everyone; "tdm": two teams */
 const MODES = ["ffa", "tdm"];
