@@ -212,3 +212,10 @@ Two cargo-office panes over the rack tops are *sealed* (`sealedGlass` in `Airpor
 The wide-body cabin model we looked at (`airplane_interior.glb`, 55 m, 3-3-3, 1.4 M tris) doesn't fit the 3.7 m narrow-body cabin, so the cabin stays our own.
 
 **Still to do:** TDM team-side spawns. The server still spawns farthest-from-everyone.
+
+## Round 4 (November 7): shaped road vehicles, rack and stair fixes
+
+- `pcx_vehicles.py` builds the bus, the taxis, the stair truck, the fuel truck, the articulated lorry and the forklift from side profiles (convex, extruded across the width) with wheel arches clipped out of the body and a dark well behind each tyre. Glass is its own narrower volume and every trim piece stands proud of it, so no faces are coplanar. Each call takes the old block's footprint and a front direction; the SIMPLE (blockout) phases still use `vehicle()` blocks.
+- `rack()`: uprights are 3 cm proud of the shelf boards (the boards shared their faces and z-fought).
+- `fittings()`: no light panel over any stair footprint (one sat just above a customs-stair step).
+- Close-up preview views: `v_bus v_bus_far v_taxi v_stair v_fuel v_semi v_fork v_rack v_custairs` in `pcx_render.py`.

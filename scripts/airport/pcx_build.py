@@ -17,6 +17,8 @@ import importlib
 import pcx_lib as L
 importlib.reload(L)
 from pcx_lib import B, box, top, wall, rail, stairs, slab, cyl, cyl_y, prism, quad, text, strut, empty
+import pcx_vehicles as V
+importlib.reload(V)
 
 PHASE = 5
 OUT = None
@@ -587,15 +589,16 @@ def cover():
     box(P, "plane_grey", 4, 80, 6, 84, 0, 1.8)
     box(P, "white_steel", 9, 80.5, 13, 82, 0, 0.9)
     # --- curb: bus, taxis, bollards
+    # (shaped vehicles from pcx_vehicles.py on the blocks' footprints; the bus's doors face the kerb)
     if SIMPLE:
         blk(84, 89.5, 96, 92.5, 0, 3.2)
     else:
-        vehicle(84, 89.5, 96, 92.5, 3.2, "white_steel", "teal")
+        V.bus(P, (84, 89.5, 96, 92.5), "+x", door_side=-1)
     for (tx, ty) in ((28, 90.1), (34, 90.1), (104, 90.1)):
         if SIMPLE:
             blk(tx, ty, tx + 4.5, ty + 1.8, 0, 1.5)
         else:
-            vehicle(tx, ty, tx + 4.5, ty + 1.8, 1.5, "gse_yellow", "window_dark", car=True)
+            V.sedan(P, (tx, ty, tx + 4.5, ty + 1.8), "+x")
     for x in range(24, 127, 3):
         if not (29 <= x <= 33 or 48 <= x <= 52 or 67 <= x <= 71 or 101 <= x <= 107):
             cyl(P, "dark_steel", x, 86.7, 0.12, 0, 0.9, seg=8)
@@ -604,7 +607,10 @@ def cover():
     uld(45, 26)
     uld(43, 28)
     uld(43, 26, 1)
-    vehicle(51, 34, 53, 40, 2.5, "gse_yellow", "dark_steel")
+    if SIMPLE:
+        vehicle(51, 34, 53, 40, 2.5, "gse_yellow", "dark_steel")
+    else:
+        V.stair_truck(P, (51, 34, 53, 40), "-y")
     if SIMPLE:
         for x in (58, 62, 66, 70):
             bag_cart(x + 1.5, 30, horiz=True)
@@ -619,7 +625,10 @@ def cover():
         MODEL_SPOTS["dolly"] += [(77, 40.2, 0.0)]
         MODEL_SPOTS["cart6"] += [(85.5, 28.5, 0.0)]
     # --- apron (east): fuel truck, GPU, belt loader, ULD at the wing's trailing edge
-    vehicle(118, 28, 121, 37, 3.0, "white_steel", "teal")
+    if SIMPLE:
+        vehicle(118, 28, 121, 37, 3.0, "white_steel", "teal")
+    else:
+        V.fuel_truck(P, (118, 28, 121, 37), "-y")
     if SIMPLE:
         vehicle(111, 38, 113.5, 40, 1.4, "gse_yellow", "grey_steel")
         vehicle(92, 30, 94, 35, 1.2, "gse_yellow", "rubber")
@@ -649,8 +658,11 @@ def cover():
         uld(x, y)
     uld(96.5, 15.5)
     # --- cargo yard: semi-trailer, ULD stacks, a shipping container, crates
-    vehicle(5, 36, 8, 50, 4.0, "white_steel", "dark_steel")
-    vehicle(5.2, 50.2, 7.8, 53.5, 3.2, "coral", "window_dark")
+    if SIMPLE:
+        vehicle(5, 36, 8, 50, 4.0, "white_steel", "dark_steel")
+        vehicle(5.2, 50.2, 7.8, 53.5, 3.2, "coral", "window_dark")
+    else:
+        V.semi(P, (5, 36, 8, 53.5), "+y")
     for (x, y) in ((25, 42), (27, 42), (29, 42)):
         uld(x, y)
     uld(27, 42, 1)
@@ -664,7 +676,10 @@ def cover():
             rack(16, y, 31, y + 1)
     for (x, y) in ((5, 22), (9, 22), (5, 26)):
         uld(x, y)
-    vehicle(11, 17, 13, 20, 2.0, "gse_yellow", "dark_steel")
+    if SIMPLE:
+        vehicle(11, 17, 13, 20, 2.0, "gse_yellow", "dark_steel")
+    else:
+        V.forklift(P, (11, 17, 13, 20), "-y")
     # --- hangar: tool chests, engine stand, work platform
     box(P, "coral", 48, 17, 52, 19, 0, 1.1)
     box(P, "grey_steel", 48, 11, 50, 15, 0, 1.8)
@@ -742,10 +757,12 @@ def vehicle(x0, y0, x1, y1, h, body, accent, car=False):
 
 
 def rack(x0, y, x1, y1):
+    # the uprights stand 3 cm proud of the shelf boards on every side, so no board face shares a plane with
+    # an upright face (they used to, and z-fought into flickering black/coral bands on the yellow posts)
     for x in (x0, (x0 + x1) / 2, x1 - 0.12):
-        box(P, "gse_yellow", x, y, x + 0.12, y1, 0, 4.0)
+        box(P, "gse_yellow", x - 0.03, y - 0.03, x + 0.15, y1 + 0.03, 0, 4.0, cell=1.0)
     for z in (0.15, 1.45, 2.75):
-        box(P, "coral", x0, y, x1, y1, z, z + 0.1)
+        box(P, "coral", x0 + 0.02, y + 0.02, x1 - 0.02, y1 - 0.02, z, z + 0.1)
         rnd = random.Random(int(y * 10 + z * 3))
         x = x0 + 0.2
         while x < x1 - 1.2:
@@ -1134,7 +1151,15 @@ def signage():
 
 def fittings():
     """ceiling light panels: what the baked lights appear to come from"""
-    lp = lambda x0, y0, x1, y1, z: top(P, "light_panel", x0, y0, x1, y1, z - 0.02, down=True, cell=0)
+    # no panel over a stair: the customs stair's tread rose to 0.28 m under the tunnel panel at x 8, which
+    # showed as a white slab lying on the steps (and the bake hung a lamp there). Stair footprints as in stairs.
+    stair_fp = [(40.5, 45, 42.5, 53.5), (125.5, 45, 127.5, 53.5), (64, 46, 66.5, 54), (73.5, 46, 76, 54),
+                (76, 68, 80, 76), (5, 71.5, 12.5, 73.5), (51, 56.5, 53.5, 63.5)]
+
+    def lp(x0, y0, x1, y1, z):
+        if any(x0 < b[2] + 0.3 and x1 > b[0] - 0.3 and y0 < b[3] + 0.3 and y1 > b[1] - 0.3 for b in stair_fp):
+            return
+        top(P, "light_panel", x0, y0, x1, y1, z - 0.02, down=True, cell=0)
     rooms = [((40, 44, 56, 56), L0H - 0.3), ((40, 56, 56, 64), 4.68), ((84, 44, 128, 62), 4.68), ((56, 54, 84, 64), 4.68), ((0, 58, 22, 86), 4.48), ((84, 62, 128, 86), 5.98)]
     for (r, z) in rooms:
         for x in range(int(r[0]) + 3, int(r[2]) - 1, 6):

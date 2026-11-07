@@ -21,6 +21,18 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 
 ---
 
+## Armory, per-gun damage, and Last Call fixes (November 7)
+
+- **ARMORY** (main menu and pause menu, `ui/Armory.ts`): every weapon and throwable, grouped by kind, with its role, where you get it (starting kit or supply cache), its carry slot and what it swaps with, six stat bars, the exact numbers (damage per round, head and limb damage, fire rate, magazine, reload, range and falloff), and how many hits put a soldier down on the current difficulty with the time to kill. It reads `config/weapons.ts` directly, so it can't drift from the game. Arrow keys move the selection; at phone width the list becomes a strip.
+  - **Pictures** (`src/assets/armory/*.webp`, 320 KB) are renders of the game's own models: the pickup copies of each gun (arms left out) and the grenade/throwing-knife projectiles, shot in the running game with an orthographic camera and studio lights into a transparent render target, then trimmed to WebP. To redo them after a model changes, render the same way from `T.g.pickups.models` / `T.g.nadeTpls`.
+- **Pickups keep to their slot.** One gun per kind (assault rifle, SMG, sniper, pistol, launcher): a gun picked up goes into its slot if that's empty, otherwise it swaps with the gun of the same kind only (M4 ↔ AK ↔ carbine ↔ M5, M72 ↔ DZJ-08), and yours is left on the ground. Checked in play from the starting kit.
+- **The Vector on a crate was a plain box:** its gun is skinned to the Fennec arms, so the pickup copier found no static geometry. `SKINNED_GUN` in `level/Pickups.ts` now bakes the gun's own skinned parts (by material name) into static copies with their own vertex buffers; the Vector in your hands is untouched.
+- **Each gun hits differently now.** Body shots to drop a 100 hp soldier (MEDIUM, inside full-damage range): AK-47 3 (45 dmg), M4 3 (38), Tactical Carbine 3 (34), M5 SCW 4 (30), Vector 5 (22 at 1000 rpm), Glock 17 6 (17), VSSK 1 anywhere (limbs ×0.85). AK, M4 and the carbine kill with one headshot; the Glock needs three. The same numbers apply online (they're claimed from the shooter's config).
+- **Last Call vehicles:** the block bus, taxis, stair truck, fuel truck, articulated lorry and forklift are now shaped vehicles (`scripts/airport/pcx_vehicles.py`): side profiles with raked glass, wheel arches cut into the body with real tyres and hubs, pillars, doors, lights, bumpers, mirrors, liveries and lettering (PCX AIRPORT SHUTTLE, JET A-1, PCX CARGO). Same footprints as the blocks, so cover and lanes are unchanged.
+- **Cargo racks flickered:** the shelf boards shared the exact front and end faces of the yellow uprights and z-fought into jagged black/coral bands. The uprights now stand 3 cm proud on every side.
+- **White slab on the customs stair:** a tunnel ceiling light panel hung 0.28 m above one of the stair's steps. `fittings()` now never puts a panel (or its baked lamp) over any stair footprint.
+- Preview views for all of these: `pcx_render.py --views v_bus,v_taxi,v_stair,v_fuel,v_semi,v_fork,v_rack,v_custairs`.
+
 ## Slide, and the Sandstorm lockers (November 3)
 
 - **Slide (Shift + C while sprinting, or the crouch button while sprinting on touch).** You drop onto your hip at 1.25 × your running speed. The speed holds, then runs down to a crouch-walk over 0.85 s. You can shoot all the way through (it isn't a sprint), steer a little, jump out of it, and come up running if Shift is still held (otherwise you end crouched). It has a 0.45 s cooldown. The view drops to 0.78 m, tips a little and widens. This works in every mode; the AI soldiers don't slide.

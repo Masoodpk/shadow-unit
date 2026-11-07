@@ -38,6 +38,12 @@ export interface Pickup {
 
 /** real overall lengths (m) the world models are scaled to */
 const LENGTH: Partial<Record<WeaponId, number>> = { carbine: 0.9, rifle: 0.84, ak47: 0.88, m5: 0.74, vssk: 1.0, glock: 0.19, vector: 0.62, m72: 0.88, dzj08: 1.0 };
+/**
+ * Guns whose model is skinned to their own arms on one skeleton (the Vector's Fennec viewmodel): the
+ * meshes whose material name matches are the gun, baked out of the rig's current pose into static copies.
+ * Without this the copier found no unskinned geometry and laid a plain box on the crate.
+ */
+const SKINNED_GUN: Partial<Record<WeaponId, RegExp>> = { vector: /^weapon_vm_sm_victor_(?!bullet)/ };
 
 /**
  * Things lying around the stage to pick up, like any shooter: guns (on a crate, or dropped by a dead
@@ -197,11 +203,23 @@ export class Pickups {
     rig.root.computeWorldMatrix(true);
     const inv = Matrix.Invert(rig.root.getWorldMatrix());
     const parts: AbstractMesh[] = [];
+    const skinPick = SKINNED_GUN[id];
     for (const m of rig.meshes) {
-      if (!(m instanceof Mesh) || m.skeleton || !m.getTotalVertices() || !m.isEnabled() || !m.isVisible) continue;
+      if (!(m instanceof Mesh) || !m.getTotalVertices()) continue;
+      const skin = m.skeleton;
+      if (skin ? !skinPick?.test(m.material?.name ?? "") : !m.isEnabled() || !m.isVisible) continue;
       m.computeWorldMatrix(true);
       const c = m.clone(m.name + "_pk", null, true);
       if (!c) continue;
+      if (skin) {
+        // its own vertex buffers (the rig's stay skinned), the pose baked in, no skeleton
+        c.makeGeometryUnique();
+        c.skeleton = skin;
+        skin.prepare();
+        c.applySkeleton(skin);
+        c.skeleton = null;
+        c.numBoneInfluencers = 0;
+      }
       c.parent = inner;
       const rel = m.getWorldMatrix().multiply(inv);
       const s = new Vector3(), q = new Quaternion(), p = new Vector3();

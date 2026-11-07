@@ -346,6 +346,14 @@ function carbineReload(speed: number): ReloadPhase[] {
 
 const NO_RECOIL: RecoilConfig = { pitch: 0, pitchJitter: 0, yaw: 0, yawBias: 0, recovery: 10, recoveryFraction: 1, kickBack: 0, kickRot: 0, adsScale: 1 };
 
+/*
+ * Damage tuning (2026-11-07): every gun has its own punch. A soldier has 100 hp (125 on HARD); body shots
+ * to put one down inside each gun's falloff start, MEDIUM:
+ *   AK-47 3 (45) · M4 3 (38) · TACTICAL CARBINE 3 (34) · M5 SCW 4 (30) · VECTOR 5 (22, but 1000 rpm)
+ *   GLOCK 17 6 (17) · VSSK 1 anywhere (120, limbs ×0.85)
+ * Headshots: AK, M4 and the carbine kill with one; the Glock needs three. The ARMORY screen (ui/Armory.ts)
+ * reads these same numbers, so it can never disagree with the game.
+ */
 export const WEAPONS: Record<WeaponId, WeaponConfig> = {
   carbine: {
     id: "carbine",
@@ -356,7 +364,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     magSize: 30,
     reserveStart: 240,
     reserveMax: 360,
-    damage: { base: 27, pellets: 1, headMultiplier: 2.6, limbMultiplier: 0.75, falloffStart: 35, falloffEnd: 90, minDamageScale: 0.6, range: 180 },
+    damage: { base: 34, pellets: 1, headMultiplier: 3.0, limbMultiplier: 0.75, falloffStart: 35, falloffEnd: 90, minDamageScale: 0.6, range: 180 },
     spread: { hip: 1.5, ads: 0.1, moving: 1.4, air: 3.5, crouchScale: 0.75, perShot: 0.2, maxBloom: 2.2, bloomRecovery: 6 },
     recoil: { pitch: 0.6, pitchJitter: 0.14, yaw: 0.28, yawBias: 0.12, recovery: 9, recoveryFraction: 0.7, kickBack: 0.014, kickRot: 0.02, adsScale: 0.62 },
     cycleTime: 0,
@@ -386,9 +394,9 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     reserveStart: 240,
     reserveMax: 360,
     damage: {
-      base: 26,
+      base: 38,
       pellets: 1,
-      headMultiplier: 2.6,
+      headMultiplier: 2.7,
       limbMultiplier: 0.75,
       falloffStart: 35,
       falloffEnd: 90,
@@ -436,7 +444,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     magSize: 30,
     reserveStart: 210,
     reserveMax: 360,
-    damage: { base: 34, pellets: 1, headMultiplier: 2.4, limbMultiplier: 0.75, falloffStart: 30, falloffEnd: 85, minDamageScale: 0.6, range: 180 },
+    damage: { base: 45, pellets: 1, headMultiplier: 2.4, limbMultiplier: 0.75, falloffStart: 30, falloffEnd: 85, minDamageScale: 0.6, range: 180 },
     spread: { hip: 2.0, ads: 0.2, moving: 1.6, air: 3.8, crouchScale: 0.75, perShot: 0.32, maxBloom: 2.8, bloomRecovery: 5 },
     recoil: { pitch: 0.95, pitchJitter: 0.22, yaw: 0.42, yawBias: 0.18, recovery: 8, recoveryFraction: 0.62, kickBack: 0.016, kickRot: 0.024, adsScale: 0.7 },
     cycleTime: 0,
@@ -465,7 +473,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     magSize: 30,
     reserveStart: 240,
     reserveMax: 360,
-    damage: { base: 24, pellets: 1, headMultiplier: 2.5, limbMultiplier: 0.75, falloffStart: 25, falloffEnd: 70, minDamageScale: 0.55, range: 150 },
+    damage: { base: 30, pellets: 1, headMultiplier: 2.5, limbMultiplier: 0.75, falloffStart: 25, falloffEnd: 70, minDamageScale: 0.55, range: 150 },
     spread: { hip: 1.4, ads: 0.15, moving: 1.1, air: 3.2, crouchScale: 0.75, perShot: 0.18, maxBloom: 1.9, bloomRecovery: 7 },
     recoil: { pitch: 0.5, pitchJitter: 0.12, yaw: 0.24, yawBias: 0.08, recovery: 10, recoveryFraction: 0.72, kickBack: 0.01, kickRot: 0.015, adsScale: 0.62 },
     cycleTime: 0,
@@ -494,7 +502,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     magSize: 5,
     reserveStart: 35,
     reserveMax: 60,
-    damage: { base: 120, pellets: 1, headMultiplier: 2.5, limbMultiplier: 0.8, falloffStart: 120, falloffEnd: 250, minDamageScale: 0.85, range: 300 },
+    damage: { base: 120, pellets: 1, headMultiplier: 2.5, limbMultiplier: 0.85, falloffStart: 120, falloffEnd: 250, minDamageScale: 0.85, range: 300 },
     spread: { hip: 4.0, ads: 0.0, moving: 2.5, air: 6, crouchScale: 0.7, perShot: 0, maxBloom: 0, bloomRecovery: 5 },
     recoil: { pitch: 3.2, pitchJitter: 0.4, yaw: 0.6, yawBias: 0, recovery: 9, recoveryFraction: 0.8, kickBack: 0.05, kickRot: 0.09, adsScale: 0.55 },
     cycleTime: 1.15,
@@ -525,7 +533,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     magSize: 17,
     reserveStart: 119,
     reserveMax: 187,
-    damage: { base: 22, pellets: 1, headMultiplier: 2.4, limbMultiplier: 0.8, falloffStart: 15, falloffEnd: 45, minDamageScale: 0.5, range: 90 },
+    damage: { base: 17, pellets: 1, headMultiplier: 2.5, limbMultiplier: 0.8, falloffStart: 15, falloffEnd: 45, minDamageScale: 0.5, range: 90 },
     spread: { hip: 1.2, ads: 0.25, moving: 1.0, air: 3, crouchScale: 0.8, perShot: 0.35, maxBloom: 1.6, bloomRecovery: 8 },
     recoil: { pitch: 1.5, pitchJitter: 0.3, yaw: 0.45, yawBias: 0, recovery: 12, recoveryFraction: 0.85, kickBack: 0.02, kickRot: 0.06, adsScale: 0.75 },
     cycleTime: 0,
@@ -554,7 +562,7 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     magSize: 25,
     reserveStart: 200,
     reserveMax: 350,
-    damage: { base: 21, pellets: 1, headMultiplier: 2.2, limbMultiplier: 0.8, falloffStart: 14, falloffEnd: 40, minDamageScale: 0.5, range: 120 },
+    damage: { base: 22, pellets: 1, headMultiplier: 2.3, limbMultiplier: 0.8, falloffStart: 14, falloffEnd: 40, minDamageScale: 0.5, range: 120 },
     spread: { hip: 1.2, ads: 0.2, moving: 0.9, air: 2.6, crouchScale: 0.8, perShot: 0.14, maxBloom: 1.6, bloomRecovery: 8 },
     // the Super V system pushes the recoil down: very little muzzle climb, a fast buzz
     recoil: { pitch: 0.34, pitchJitter: 0.12, yaw: 0.26, yawBias: 0.04, recovery: 12, recoveryFraction: 0.78, kickBack: 0.008, kickRot: 0.01, adsScale: 0.7 },

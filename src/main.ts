@@ -13,6 +13,7 @@ import whiteoutThumb from "./assets/thumbs/whiteout.webp?url";
 import metroThumb from "./assets/thumbs/metro.webp?url";
 import airportThumb from "./assets/thumbs/airport.webp?url";
 import { TOUCH_LABELS, TouchControls, isTouchDevice } from "./ui/TouchControls";
+import { Armory } from "./ui/Armory";
 
 /** stage thumbnails: real renders of each stage */
 const THUMBS: Record<StageId, string> = { office: frostlineThumb, dust2: sandstormThumb, metro: metroThumb, nightshift: nightshiftThumb, airport: airportThumb, whiteout: whiteoutThumb };
@@ -301,15 +302,18 @@ $<HTMLInputElement>("ctl-arsenal").addEventListener("change", (e) => {
 
 // ------------------------------------------------------------------ panels (settings / controls / credits)
 let panelReturn = "menu";
-function openPanel(id: "settings" | "controls" | "credits" | "mp", from: string) {
+const armory = new Armory($("armory-body"));
+function openPanel(id: "settings" | "controls" | "credits" | "mp" | "armory", from: string) {
   panelReturn = from;
   show(from, false);
   show(id, true);
   if (id === "controls") renderBinds();
+  if (id === "armory") armory.open(difficulty.id);
 }
 function closePanels() {
   cancelCapture();
-  for (const p of ["settings", "controls", "credits", "mp"]) show(p, false);
+  armory.close();
+  for (const p of ["settings", "controls", "credits", "mp", "armory"]) show(p, false);
   show(panelReturn, true);
 }
 for (const b of document.querySelectorAll<HTMLButtonElement>(".panel-back")) b.addEventListener("click", closePanels);
@@ -423,7 +427,8 @@ if (touch) {
 
 // ------------------------------------------------------------------ title → menu → stages
 function goMenu() {
-  for (const s of ["splash", "stages", "settings", "controls", "credits"]) show(s, false);
+  for (const s of ["splash", "stages", "settings", "controls", "credits", "armory"]) show(s, false);
+  armory.close();
   show("menu", true);
   // (an invite link: straight on to the MULTIPLAYER screen, once)
   if (pendingInvite) {
@@ -552,6 +557,7 @@ $("btn-stages-back").addEventListener("click", goMenu);
 $("btn-settings").addEventListener("click", () => openPanel("settings", "menu"));
 $("btn-controls").addEventListener("click", () => openPanel("controls", "menu"));
 $("btn-credits").addEventListener("click", () => openPanel("credits", "menu"));
+$("btn-armory").addEventListener("click", () => openPanel("armory", "menu"));
 
 // ------------------------------------------------------------------ online deathmatch
 /** set when a multiplayer game is being deployed (Black Ledger, no soldiers, the others are the enemy) */
@@ -894,7 +900,10 @@ function onState(state: GameState, stats?: RoundStats) {
   // the pause menu and the result screens have the menu music (the game is silent behind them)
   menuMusic.setActive(state === "paused" || state === "dead" || state === "won");
   show("result", state === "dead" || state === "won");
-  if (state !== "paused") for (const p of ["settings", "controls", "credits"]) show(p, false);
+  if (state !== "paused") {
+    for (const p of ["settings", "controls", "credits", "armory"]) show(p, false);
+    armory.close();
+  }
   if (state !== "playing") touchUi?.reset();
   document.body.classList.toggle("ingame", state === "playing");
   // loading finished: straight into the stage (no "click to engage" screen)
@@ -1145,7 +1154,7 @@ matchMedia("(orientation: portrait)").addEventListener("change", (e) => {
 // Without pointer lock the browser doesn't exit on ESC for us — handle pause manually.
 window.addEventListener("keydown", (e) => {
   if (!game || e.code !== "Escape" || capture) return;
-  const panelOpen = ["settings", "controls", "credits"].some((p) => !$(p).classList.contains("hidden"));
+  const panelOpen = ["settings", "controls", "credits", "armory"].some((p) => !$(p).classList.contains("hidden"));
   if (panelOpen) {
     closePanels();
     return;
@@ -1189,6 +1198,7 @@ $("btn-next").addEventListener("click", () => {
 $("btn-restart-p").addEventListener("click", () => restart());
 $("btn-settings-p").addEventListener("click", () => openPanel("settings", "pause"));
 $("btn-controls-p").addEventListener("click", () => openPanel("controls", "pause"));
+$("btn-armory-p").addEventListener("click", () => openPanel("armory", "pause"));
 const toMainMenu = () => {
   session.set("skipSplash", "1");
   location.reload();
