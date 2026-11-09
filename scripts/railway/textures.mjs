@@ -77,6 +77,58 @@ function glazed() {
   return sharp(px, { raw: { width: N, height: N, channels: 3 } }).jpeg({ quality: 88 }).toFile(path.join(OUT, "tile_glazed.jpg"));
 }
 
+// foliage.jpg — a tree crown's foliage (generated, tiles): thousands of small overlapping leaves in mixed greens
+// over a dark interior, lit from above; bark.jpg — grey-brown bark with vertical fissures (generated, tiles)
+function leaves() {
+  const px = new Float32Array(N * N * 3);
+  for (let i = 0; i < N * N; i++) (px[i * 3] = 0.09), (px[i * 3 + 1] = 0.16), (px[i * 3 + 2] = 0.06);
+  for (let n = 0; n < 9000; n++) {
+    const cx = rnd() * N, cy = rnd() * N, len = 9 + rnd() * 13, wid = len * (0.38 + rnd() * 0.15), a = rnd() * Math.PI;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const t = rnd();
+    const base = [0.3 + t * 0.3, 0.48 + t * 0.32, 0.12 + t * 0.1];
+    const tilt = rnd() * 2 - 1;
+    const R = Math.ceil(len);
+    for (let dy = -R; dy <= R; dy++)
+      for (let dx = -R; dx <= R; dx++) {
+        const u = (dx * ca + dy * sa) / len, v = (-dx * sa + dy * ca) / wid;
+        const d = u * u + v * v;
+        if (d > 1) continue;
+        const X = (Math.floor(cx + dx) + N) % N, Y = (Math.floor(cy + dy) + N) % N;
+        // a leaf: lighter on the side facing the light, a darker midrib, darker towards its edge
+        const lit = 0.85 + 0.25 * tilt * v + 0.1 * (1 - d) - (Math.abs(v) < 0.08 ? 0.12 : 0);
+        const i = (Y * N + X) * 3;
+        for (let k = 0; k < 3; k++) px[i + k] = base[k] * lit;
+      }
+  }
+  const out = Buffer.alloc(N * N * 3);
+  for (let i = 0; i < out.length; i++) out[i] = Math.round(255 * Math.max(0, Math.min(1, px[i])));
+  return sharp(out, { raw: { width: N, height: N, channels: 3 } }).jpeg({ quality: 86 }).toFile(path.join(OUT, "foliage.jpg"));
+}
+function bark() {
+  const px = Buffer.alloc(N * N * 3);
+  const cols = Array.from({ length: 48 }, () => ({ x: rnd(), w: 0.004 + rnd() * 0.01, ph: rnd() * 6.28, f: 2 + Math.floor(rnd() * 4) }));
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const u = x / N, v = y / N;
+      let fiss = 1;
+      for (const c of cols) {
+        let dx = u - (c.x + 0.012 * Math.sin(v * 6.283 * c.f + c.ph));
+        dx -= Math.round(dx);
+        const d = Math.abs(dx) / c.w;
+        if (d < 1) fiss = Math.min(fiss, 0.35 + 0.65 * d);
+      }
+      const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; const g = 0.88 + 0.24 * (h - Math.floor(h));
+      const plate = 0.9 + 0.1 * Math.sin(v * 40 + Math.sin(u * 30) * 2);
+      const k = fiss * g * plate;
+      const i = (y * N + x) * 3;
+      px[i] = Math.round(255 * Math.min(1, 0.62 * k));
+      px[i + 1] = Math.round(255 * Math.min(1, 0.54 * k));
+      px[i + 2] = Math.round(255 * Math.min(1, 0.45 * k));
+    }
+  return sharp(px, { raw: { width: N, height: N, channels: 3 } }).jpeg({ quality: 86 }).toFile(path.join(OUT, "bark.jpg"));
+}
+
 // material: [scan in textures/src, target mean colour (sRGB 0..1), detail contrast (1 = as scanned)]
 const SCANS = {
   brick: ["red_brick_03", [0.56, 0.3, 0.23]],
@@ -105,5 +157,7 @@ async function scans() {
 }
 await ballast();
 await glazed();
+await leaves();
+await bark();
 await scans();
 console.log("wrote", OUT);

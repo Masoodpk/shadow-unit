@@ -66,6 +66,7 @@ import { buildOffice2 } from "../level/Office2";
 import { buildAirport } from "../level/Airport";
 import { buildRailway } from "../level/Railway";
 import { buildCarbineRig, loadCarbineContainer } from "../weapons/CarbineRig";
+import { buildUziRig, loadUziContainer } from "../weapons/UziRig";
 import { buildGrenadeRig, loadFlashbangContainer } from "../weapons/GrenadeRig";
 import { buildKnifeRigFP, loadKnifeFPContainer } from "../weapons/KnifeRigFP";
 import { RocketBlast, Rockets } from "../fx/Rockets";
@@ -133,6 +134,8 @@ export interface RoundStats {
 
 const DEBUG_ENABLED = import.meta.env.DEV || import.meta.env.VITE_DEBUG_OVERLAY === "true";
 const tick = () => new Promise((r) => setTimeout(r, 0));
+/** where each gun's pistol grip sits, as a fraction of its length from the butt (a soldier's hand goes there) */
+const HELD_GRIP: Partial<Record<WeaponId, number>> = { rifle: 0.36, ak47: 0.33, carbine: 0.37, m5: 0.4, vector: 0.47, uzi: 0.52 };
 
 /**
  * Composition root: creates engine/scene and all systems once, then runs the
@@ -1351,6 +1354,20 @@ export class Game {
     this.enemies = new EnemyManager(scene, this.mats, this.level, this.player, this.fx, this.audio, this.physics);
     this.skins = await skinsP;
     this.enemies.attachSkins(this.skins);
+    // every soldier carries one of the unit's own guns (the boss keeps his AKS): you see it in his hands, he
+    // fires it at its rate and damage, and it's the gun he drops — kill him and you can take it
+    {
+      const pool: WeaponId[] = ["rifle", "ak47", "carbine", "m5", "vector", "uzi"];
+      const off = (Math.random() * pool.length) | 0;
+      this.enemies.enemies.forEach((e, i) => {
+        if (e.boss || !e.skin) return;
+        const id = pool[(i + off) % pool.length];
+        const model = this.pickups.sidearm(id, true);
+        if (!model) return;
+        e.setGun(id);
+        e.skin.holdGun(model, HELD_GRIP[id] ?? 0.38);
+      });
+    }
     // the stage's boss carries a sidearm too (the Glock): he draws it when his rifle runs dry
     for (const e of this.enemies.enemies) {
       if (!e.boss || !e.skin) continue;
@@ -1403,6 +1420,7 @@ export class Game {
       if (e.skin) {
         for (const m of e.skin.meshes) sm.renderList!.push(m);
         sm.renderList!.push(e.skin.gun);
+        if (e.skin.held) sm.renderList!.push(...e.skin.held.getChildMeshes(false));
       } else for (const m of e.parts.all) sm.renderList!.push(m);
     }
     // (the Playground, with its crowd: the shadows are redrawn every other frame — 30 Hz is plenty for
@@ -1423,7 +1441,8 @@ export class Game {
       const fy = nav.floorAt(p.x, p.y + 0.3, p.z, 0.6);
       return fy !== null && Math.abs(fy - p.y) < 0.12 && !nav.embedded(p.x, p.y + 0.15, p.z) && !nav.embedded(p.x, p.y + 0.5, p.z);
     };
-    this.pickups.populate(walls, start, office ? 9 : info.id === "dust2" || info.id === "metro" ? 8 : 5, fits);
+    // (TERMINUS is huge, with many rooms: 14 more caches than the usual 11)
+    this.pickups.populate(walls, start, office ? 9 : info.id === "dust2" || info.id === "metro" ? 8 : 5, fits, info.id === "railway" ? 14 : 0);
     this.player.collider.surroundingMeshes!.push(...this.pickups.solids);
     const lv = this.level;
     this.minimap = new Minimap(lv.colliders, lv.bounds, lv.boxes && lv.floorRange ? { boxes: lv.boxes.data, floorMin: lv.floorRange[0], floorMax: lv.floorRange[1] } : undefined);
@@ -1910,22 +1929,24 @@ export class Game {
   /** Arms template + every glTF gun (+ the Vector's own viewmodel and the flashbang), downloaded in parallel. */
   private async loadWeaponRigs(progress: (p: number) => void) {
     const ids = Object.keys(GUNS) as WeaponId[];
-    const parts = new Array(ids.length + 6).fill(0);
+    const parts = new Array(ids.length + 7).fill(0);
     const report = () => progress(parts.reduce((a, b) => a + b, 0) / parts.length);
     const n = ids.length;
-    const [tpl, vecC, flashC, lethal, knifeC, carbC, ...gunContainers] = await Promise.all([
+    const [tpl, vecC, flashC, lethal, knifeC, carbC, uziC, ...gunContainers] = await Promise.all([
       loadArmsTemplate(this.scene, (p) => ((parts[0] = p), report())),
       loadVectorContainer(this.scene, (p) => ((parts[n + 1] = p), report())),
       loadFlashbangContainer(this.scene, (p) => ((parts[n + 2] = p), report())),
       loadGrenadeSet(this.scene, (p) => ((parts[n + 3] = p), report())),
       loadKnifeFPContainer(this.scene, (p) => ((parts[n + 4] = p), report())),
       loadCarbineContainer(this.scene, (p) => ((parts[n + 5] = p), report())),
+      loadUziContainer(this.scene, (p) => ((parts[n + 6] = p), report())),
       ...ids.map((id, i) => loadGunContainer(this.scene, GUNS[id]!, (p) => ((parts[i + 1] = p), report()))),
     ]);
     const rigs: Partial<Record<WeaponId, WeaponRig>> = { rifle: buildArmsRig(this.scene, tpl, "rifle", null, null) };
     ids.forEach((id, i) => (rigs[id] = buildArmsRig(this.scene, tpl, id, GUNS[id]!, gunContainers[i])));
     rigs.vector = buildVectorRig(this.scene, vecC);
     rigs.carbine = buildCarbineRig(this.scene, carbC);
+    rigs.uzi = buildUziRig(this.scene, uziC);
     // (the throwing knife: the combat knife's blade, off its first-person file — before that rig takes it)
     const blade = knifeC.meshes.find((m) => m.name.startsWith("knife_knife")) as Mesh;
     const knifeTpl = makeKnifeTemplate(blade);
@@ -2655,8 +2676,10 @@ export class Game {
       const floor = this.level.nav.floorAt(at.x, at.y + 0.3, at.z, 2.5);
       if (floor === null) continue;
       at.y = floor;
-      // a dead man's rifle: what's left in the magazine, and the two or three spare mags on his vest
-      this.pickups.addWeapon("ak47", at, Math.random() * 6.28, 10 + ((Math.random() * 21) | 0), 30 * (2 + ((Math.random() * 2) | 0)), false, false, () => gun.setEnabled(false));
+      // a dead man's gun (the one he carried): what's left in the magazine, and two or three spare mags
+      const id = d.e.gunId;
+      const magSize = WEAPONS[id].magSize;
+      this.pickups.addWeapon(id, at, Math.random() * 6.28, Math.max(1, Math.round(magSize * (0.3 + Math.random() * 0.7))), magSize * (2 + ((Math.random() * 2) | 0)), false, false, () => gun.setEnabled(false));
     }
   }
 

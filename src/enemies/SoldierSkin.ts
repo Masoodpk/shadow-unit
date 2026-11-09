@@ -243,6 +243,8 @@ const RETARGET: Partial<Record<SkinKind, { names: RetargetNames; height: number;
  * hold: where each wrist sits and how each hand is turned (wrist→middle knuckle,
  * pinky→index knuckle).
  */
+/** frame-G depth of the AKS-74U's pistol grip (just ahead of the right wrist): where any held gun's grip goes */
+const GRIP_Z = -0.2;
 const G = {
   rWrist: new Vector3(0.0181, -0.0517, -0.2677),
   rD1: new Vector3(0.0078, -0.0221, 0.1186),
@@ -316,6 +318,8 @@ export class SoldierSkins {
   gun!: Mesh;
   /** muzzle in G */
   muzzleG = new Vector3(0, 0.03, 0.3);
+  /** the AKS-74U's vertical centre in frame G */
+  gunCentreY = 0;
   private anims!: Record<SkinKind, AnimSet>;
 
   /** the characters loaded for this stage (the FSB operator always: the rifle and the mocap come from him) */
@@ -415,6 +419,10 @@ export class SoldierSkins {
     const acc = new Vector3();
     for (let i = 0; i < pos.length; i += 3) if (pos[i + 2] > maxZ - 0.012) (acc.x += pos[i], acc.y += pos[i + 1], n++);
     this.muzzleG.set(acc.x / Math.max(1, n), acc.y / Math.max(1, n), maxZ + 0.01);
+    // its height in frame G (a gun swapped into his hands is centred on the same line)
+    let minY = 1e9, maxY = -1e9;
+    for (let i = 1; i < pos.length; i += 3) (minY = Math.min(minY, pos[i])), (maxY = Math.max(maxY, pos[i]));
+    this.gunCentreY = (minY + maxY) / 2;
     this.gun = gun;
     void scene;
   }
@@ -538,7 +546,7 @@ export class SoldierSkin {
   private calF = new Vector3(0, 0, 1);
   private calU = new Vector3(0, 1, 0);
 
-  constructor(owner: SoldierSkins, c: AssetContainer, map: RigMap, private p: SoldierParts, idx: number, anim: AnimSet) {
+  constructor(private owner: SoldierSkins, c: AssetContainer, map: RigMap, private p: SoldierParts, idx: number, anim: AnimSet) {
     const e = c.instantiateModelsToScene((n) => `${n}#${idx}`, false, { doNotInstantiate: true });
     const root = (this.root = e.rootNodes[0] as TransformNode);
     root.setEnabled(true);
@@ -1125,6 +1133,36 @@ export class SoldierSkin {
   }
 
   // ------------------------------------------------------------------ the sidearm
+  /** the gun model in his hands when it isn't the stock AKS-74U (see holdGun) */
+  held: TransformNode | null = null;
+  /**
+   * Put another gun in his hands in place of the AKS-74U: a pickup model, upright and centred, +Z its
+   * muzzle, real size (Pickups.sidearm). Its pistol grip — `gripFrac` of its length from the butt — goes
+   * where the AKS's was, under the right hand, on the same line; the muzzle point moves to its barrel.
+   */
+  holdGun(c: TransformNode, gripFrac: number) {
+    const owner = this.owner;
+    c.parent = null;
+    c.position.setAll(0);
+    c.rotationQuaternion = null;
+    c.rotation.setAll(0);
+    c.computeWorldMatrix(true);
+    const { min, max } = c.getHierarchyBoundingVectors(true);
+    const gripZ = min.z + gripFrac * (max.z - min.z);
+    const cy = (min.y + max.y) / 2;
+    const off = new Vector3(0, owner.gunCentreY - cy, GRIP_Z - gripZ);
+    c.parent = this.p.gun;
+    c.position.copyFrom(G.mount).addInPlace(off);
+    for (const m of c.getChildMeshes(false)) {
+      m.isPickable = false;
+      m.setEnabled(true);
+    }
+    this.gun.setEnabled(false);
+    this.held = c;
+    this.muzzleLocal.set(0, owner.gunCentreY + 0.02, max.z + off.z + 0.01);
+    this.p.muzzle.position.copyFrom(this.muzzleLocal).addInPlace(G.mount);
+  }
+
   /** a pistol (the Glock pickup's model: centred, +Z its muzzle, 0.19 m long) — none: rifle only */
   sidearm: TransformNode | null = null;
   private pistolU = new Vector3(0, 1, 0);

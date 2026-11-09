@@ -25,6 +25,9 @@ export interface EnemyHitTarget {
 }
 
 /** melee (V / middle mouse): rifle butt-stroke or pistol whip */
+/** guns with an authored inspect clip (the inspect key): how long it plays, seconds */
+const INSPECT_TIME: Partial<Record<WeaponId, number>> = { carbine: 1.6, uzi: 5.6 };
+
 const MELEE = {
   duration: 0.6,
   /** fraction of the swing when the blow lands */
@@ -639,18 +642,18 @@ export class WeaponManager {
   inspectT = -1;
   private startInspect() {
     const w = this.weapon;
-    if (w.cfg.id !== "carbine" || w.state !== "ready" || this.inspectT >= 0 || this.meleeT >= 0 || this.player.sprinting || this.adsT > 0.05) return;
+    if (!(w.cfg.id in INSPECT_TIME) || w.state !== "ready" || this.inspectT >= 0 || this.meleeT >= 0 || this.player.sprinting || this.adsT > 0.05) return;
     this.inspectT = 0;
   }
   private updateInspect(dt: number) {
     if (this.inspectT < 0) return;
     const w = this.weapon;
     const inp = this.input;
-    if (w.cfg.id !== "carbine" || w.state !== "ready" || this.meleeT >= 0 || this.player.sprinting || inp.fireHeld || inp.adsHeld || !this.player.alive) {
+    if (!(w.cfg.id in INSPECT_TIME) || w.state !== "ready" || this.meleeT >= 0 || this.player.sprinting || inp.fireHeld || inp.adsHeld || !this.player.alive) {
       this.inspectT = -1;
       return;
     }
-    this.inspectT += dt / (1.6 / 1.0);
+    this.inspectT += dt / (INSPECT_TIME[w.cfg.id] ?? 1.6);
     if (this.inspectT >= 1) this.inspectT = -1;
   }
 

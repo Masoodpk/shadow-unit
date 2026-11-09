@@ -141,12 +141,16 @@ for o in targets:
     me = o.data
     lay = me.color_attributes["light"]
     emissive = me.materials and me.materials[0] and me.materials[0].name in emit_mats
+    # tree crowns: leaves let light through, so a crown's inner clumps aren't black — lift them towards the
+    # sky's level (the plain diffuse bake treats each overlapping clump as a closed, self-shadowed ball)
+    leafy = me.materials and me.materials[0] and me.materials[0].name == "pcx_foliage"
     vals = [0.0] * (len(lay.data) * 4)
     lay.data.foreach_get("color", vals)
     for i in range(0, len(vals), 4):
         for c in range(3):
             e = vals[i + c]
-            vals[i + c] = 1.0 if emissive else min(1.0, AMB + 1.3 * e / (e + K))
+            v = 1.0 if emissive else min(1.0, AMB + 1.3 * e / (e + K))
+            vals[i + c] = 0.5 + 0.5 * v if leafy else v
         vals[i + 3] = 1.0
         hist[min(9, int(vals[i] * 10))] += 1
     lay.data.foreach_set("color", vals)

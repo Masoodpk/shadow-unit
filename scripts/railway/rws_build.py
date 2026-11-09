@@ -66,8 +66,8 @@ L.MATS.update({
     "roof_grey":   _o((0.4, 0.4, 0.41)),
     "metro_red":   _o((0.62, 0.1, 0.09)),
     "seat_red":    _o((0.45, 0.08, 0.1)),
-    "foliage":     _o((0.2, 0.32, 0.14)),
-    "bark":        _o((0.3, 0.22, 0.15)),
+    "foliage":     ((0.2, 0.32, 0.14), "foliage", 1.8, None, "opaque"),   # textures.mjs: leaves
+    "bark":        ((0.3, 0.26, 0.21), "bark", 1.2, None, "opaque"),
     "sash":        _o((0.85, 0.82, 0.72)),
     "sig_green":   _e((0.25, 1.0, 0.45)),
     "sig_red":     _e((1.0, 0.15, 0.1)),
@@ -386,7 +386,7 @@ def crate_stack(x0, y0, x1, y1, z0, h, coll=YD, seed=0):
                     z += hh
 
 
-def sign(x, y, z, body, facing="s", w=None, size=0.45, board=True, post=False, coll=S):
+def sign(x, y, z, body, facing="s", w=None, size=0.45, board=True, post=False, coll=S, floor=None):
     """an enamel sign: cream lettering on a maroon board with a cream border (on a wall, hung, or standing on two
     iron posts with post=True)"""
     w = w or max(1.2, len(body) * size * 0.62 + 0.6)
@@ -401,10 +401,14 @@ def sign(x, y, z, body, facing="s", w=None, size=0.45, board=True, post=False, c
             box(coll, "cream", x - 0.035, y - w / 2 - 0.05, x + 0.035, y + w / 2 + 0.05, z - hgt / 2 - 0.05, z + hgt / 2 + 0.05, cell=0)
     if post:
         zb = z - hgt / 2
-        floor = Z_UG if zb < -3 else 0.0
+        if floor is None:
+            floor = Z_UG if zb < -3 else 0.0
         for o in (-(w / 2 - 0.2), w / 2 - 0.2):
             px, py = (x + o, y) if facing in ("s", "n") else (x, y + o)
             box(coll, "iron", px - 0.045, py - 0.045, px + 0.045, py + 0.045, floor, zb, cell=0)
+        # a standing sign is seen from both sides: lettering on the back too (not a blank maroon board)
+        back = {"s": "n", "n": "s", "e": "w", "w": "e"}[facing]
+        text(coll, "sign_text", body, x - off[0], y - off[1], z, size=size, facing=back)
     text(coll, "sign_text", body, x + off[0], y + off[1], z, size=size, facing=facing)
 
 
@@ -874,7 +878,9 @@ def lobby_fittings():
             box(P, "brass", gx - 0.008, 112.49, gx + 0.008, 112.51, 1.15, 2.2, cell=0)
         box(P, "brass", w0, 112.47, w1, 112.53, 1.5, 1.53, cell=0)
         box(P, "panel", x - 0.15, 112.35, x + 3.75, 112.65, 3.0, 3.25, cell=0)
-    box(BL, "panel", 50, 116.5, 74, 117, 0, 5.5)
+    box(BL, "panel", 50, 116.5, 61, 117, 0, 5.5)
+    box(BL, "panel", 63.6, 116.5, 74, 117, 0, 5.5)
+    box(BL, "panel", 61, 116.5, 63.6, 117, 3.0, 5.5)                 # a doorway through to the chemist's
     sign(62, 116.4, 4.4, "BOOKING OFFICE", "n", size=0.55)
     # the left-luggage office: a counter with trunks and cases waiting on it and behind it
     box(P, "panel", 76, 116, 84, 116.8, 0, 1.1)
@@ -960,7 +966,8 @@ def lobby_fittings():
     box(UG, "tile_glazed", 151.7, 105.7, 152.0, 111.7, -2.4, 0.0, cell=0)
     rail(BL, (140, 105.95), (151.7, 105.95), 0.0)
     rail(BL, (140, 111.45), (151.7, 111.45), 0.0)
-    rail(BL, (139.95, 106), (139.95, 111.4), 0.0)
+    # (the stairs climb west: their heads at x 140 are the way in from the hall, the drop is at the east end)
+    rail(BL, (151.75, 106), (151.75, 111.4), 0.0)
     sign(146, 105.9, 2.6, "UNDERGROUND", "n", size=0.42, post=True)
 
 
@@ -1012,8 +1019,13 @@ def north_building():
     rail(NB, (152.2, 31.75), (x1, 31.75), z1)
     # ground floor rooms off a corridor (y 26–32): staff, lockers, police, the SIGNAL CONTROL room, stores
     rooms = [(40, 60, "STAFF"), (60, 80, "LOCKERS"), (80, 100, "POLICE"), (100, 112, "BOILERS"), (120, 146, "CONTROL ROOM"), (146, 166, "STORES"), (166, 182, "MESS")]
-    wall(NB, "plaster", (40, 26), (182, 26), 0.0, z1 - 0.4, 0.2, doors=[(a + 2, a + 4, 2.4) for (a, _b, _n) in rooms] + [(113.5, 118.5, 6.0)])
-    box(NB, "panel", 40, 25.85, 182, 25.9, 0, 1.2, cell=2.0)
+    wall(NB, "plaster", (40, 26), (182, 26), 0.0, z1 - 0.4, 0.2, doors=[(a + 2, a + 4, 2.4) for (a, _b, _n) in rooms] + [(112.2, 119.8, 6.0)])
+    dado = [(a + 2, a + 4) for (a, _b, _n) in rooms] + [(112.2, 119.8)]
+    cur = 40.0
+    for (d0, d1) in sorted(dado):
+        box(NB, "panel", cur, 25.85, d0, 25.9, 0, 1.2, cell=2.0)
+        cur = d1
+    box(NB, "panel", cur, 25.85, 182, 25.9, 0, 1.2, cell=2.0)
     for (a, b, name) in rooms:
         if b < x1:
             wall(NB, "plaster", (b, 18.2), (b, 26), 0.0, z1 - 0.4, 0.2)
@@ -1189,9 +1201,11 @@ def underground():
     for x in (113.7, 118.0):
         box(UG, "tile_glazed", x, 21.3, x + 0.3, 33, z0, 0.0, cell=2.0)
     box(UG, "tile_glazed", 114, 21.0, 118, 21.3, z0, 0.0, cell=0)
-    rail(NB, (113.95, 21.3), (113.95, 31.8), 0.0)
-    rail(NB, (118.05, 21.3), (118.05, 31.8), 0.0)
-    rail(NB, (114, 21.25), (118, 21.25), 0.0)
+    # railings along the well, open over its top 1.3 m (the steps there are within 0.8 m of the floor): you step
+    # off the head of the stair sideways onto the floor beside it (it used to be railed in on three sides — a
+    # dead end nobody could leave)
+    rail(NB, (113.95, 22.6), (113.95, 31.8), 0.0)
+    rail(NB, (118.05, 22.6), (118.05, 31.8), 0.0)
     # ---- the underground railway under the booking hall: platform (north), the trench, the tunnel mouths
     mx0, my0, mx1, my1 = METRO
     ptop = 116.5
@@ -1202,6 +1216,10 @@ def underground():
     box(UG, "brick_dark", 62, ptop, 168, ptop + 0.02, z0 - 1.2, z0, skip=("top",), cell=2.0)
     top(UG, "ballast", 52, ptop, 178, my1, z0 - 1.2)
     track(52, 178, 119.0, zbed=z0 - 1.2, coll=UG)
+    # steps out of the track trench at both platform ends (the platform is 1.2 m up — too high to climb):
+    # whoever jumps down onto the line can walk back up, and soldiers use the line as a route too
+    for (tx0, tx1) in ((62.2, 65.2), (164.8, 167.8)):
+        stairs(UG, "stone", (tx0, ptop, tx1, my1 - 0.2), z0 - 1.2, z0, "-y")    # (open sides: walk on from the line)
     for r in L.cut((mx0, my0, mx1, my1), [METRO_STAIR, (140, 109.4, 151.7, 111.4)]):
         top(UG, "plaster", *r, zc2, down=True)
     wall(UG, "tile_glazed", (mx0, my0), (mx1, my0), z0, zc2, 0.4, doors=[(sx0, sx1, 4.0)])
@@ -1383,7 +1401,7 @@ def depot():
             box(YD, "timber", xa - 0.1, ya - 0.1, xb + 0.1, yb + 0.1, Z_BED, Z_BED + 1.3, skip=("top",), cell=0)
         else:
             crate_stack(xa, ya, xb, yb, Z_BED, 2.5 if k else 5.1, seed=20 + k)
-    sign(220, 18.5, 3.2, "AUTHORISED PERSONS ONLY", "s", size=0.32, post=True)
+    sign(220, 18.5, 2.0, "AUTHORISED PERSONS ONLY", "s", size=0.32, post=True, floor=Z_BED)   # the yard is at −1.2
 
 
 # ======================================================================================== the road bridge (west)
@@ -1424,7 +1442,7 @@ def road_bridge():
         box(G, "stone", 8.3, a - 0.6, 8.36, a, Z_BED, 4.3, cell=0)
         box(G, "stone", 8.3, b, 8.36, b + 0.6, Z_BED, 4.3, cell=0)
         text(S, "sign_text", "NO ENTRY  ·  TRACK WORKS", 8.35, (a + b) / 2, Z_BED + 1.8, size=0.34, facing="e")
-    sign(18, 103.8, z + 2.2, "CALDER WAY", "s", size=0.4, board=True)
+    sign(18, 103.8, z + 2.2, "CALDER WAY", "s", size=0.4, board=True, post=True, floor=z)    # on posts on the deck
 
 
 # ======================================================================================== trains
@@ -1783,6 +1801,9 @@ def steam_crane(x0, y, zr):
     cyl_y(TN, "grey_steel", jb[0] + 0.2, y - 0.25, y + 0.25, jb[1] - 0.6, 0.18, seg=10)
 
 
+# models that arrive facing the wrong way: the InterCity power car's cab must lead at the west end (its
+# coaches follow it east), the model comes with the cab at its east end
+TURN = {"hst_power"}
 IMPORTS = {   # model name: list of (west end x, track y)
     "soviet_loco": [(68.8, SIDINGS["S1"])],
     "hst_power": [(36.5, TRACKS["T6"])],
@@ -1802,6 +1823,8 @@ def imported_trains():
         src = next(o for o in new if o.type == "MESH")
         src.data = src.data.copy()
         src.data.transform(src.matrix_world)
+        if name in TURN:
+            src.data.transform(Matrix.Rotation(math.pi, 4, "Z"))    # half a turn about its own vertical
         for o in new:
             if o is not src:
                 bpy.data.objects.remove(o)
@@ -1886,8 +1909,9 @@ def waiting_room(kx, cy):
             face(P, "timber", [B(xv, yy, 2.72), B(xv + 0.25, yy, 2.72), B(xv + 0.25, yy, 2.45), B(xv + 0.125, yy, 2.3)], (0, 1 if yy < cy else -1, 0))
             xv += 0.25
     lantern(kx + 3.0, cy, 2.7, drop=0.6, coll=P)
-    sign(kx + 3.0, y0 - 0.08, 2.45, "WAITING ROOM", "n", size=0.18, board=False)
-    sign(kx + 3.0, y1 + 0.08, 2.45, "WAITING ROOM", "s", size=0.18, board=False)
+    # lettered on the valance's face (on the wall behind it, the valance's scallops cut the letters up)
+    sign(kx + 3.0, y0 - 0.53, 2.58, "WAITING ROOM", "n", size=0.16, board=False)
+    sign(kx + 3.0, y1 + 0.53, 2.58, "WAITING ROOM", "s", size=0.16, board=False)
 
 
 def water_crane(x, y):
@@ -1980,12 +2004,104 @@ def platform_props():
         hanging_clock(136.0, y, VZ - 3.0, axis="x", top_z=VZ - 1.22)
 
 
+def _ico(sub=1):
+    """a unit icosphere: (vertices, triangles)"""
+    t = (1 + 5 ** 0.5) / 2
+    vs = [Vector(v).normalized() for v in ((-1, t, 0), (1, t, 0), (-1, -t, 0), (1, -t, 0), (0, -1, t), (0, 1, t),
+                                            (0, -1, -t), (0, 1, -t), (t, 0, -1), (t, 0, 1), (-t, 0, -1), (-t, 0, 1))]
+    fs = [(0, 11, 5), (0, 5, 1), (0, 1, 7), (0, 7, 10), (0, 10, 11), (1, 5, 9), (5, 11, 4), (11, 10, 2), (10, 7, 6),
+          (7, 1, 8), (3, 9, 4), (3, 4, 2), (3, 2, 6), (3, 6, 8), (3, 8, 9), (4, 9, 5), (2, 4, 11), (6, 2, 10), (8, 6, 7), (9, 8, 1)]
+    for _ in range(sub):
+        mid, nf = {}, []
+
+        def m(a, b):
+            k = (min(a, b), max(a, b))
+            if k not in mid:
+                mid[k] = len(vs)
+                vs.append(((vs[a] + vs[b]) / 2).normalized())
+            return mid[k]
+        for (a, b, c) in fs:
+            ab, bc, ca = m(a, b), m(b, c), m(c, a)
+            nf += [(a, ab, ca), (b, bc, ab), (c, ca, bc), (ab, bc, ca)]
+        fs = nf
+    return vs, fs
+
+
+ICO = _ico(1)
+
+
+def leaf_clump(coll, c, r, rnd, squash=0.8):
+    """a lumpy ball of leaves: an icosphere pushed in and out at random, a little flattened"""
+    vs, fs = ICO
+    k = [0.78 + rnd.random() * 0.4 for _ in vs]
+    pts = [Vector((c[0] + v.x * r * k[i], c[1] + v.y * r * k[i], c[2] + v.z * r * squash * k[i])) for i, v in enumerate(vs)]
+    for (a, b, d) in fs:
+        p, q, w = pts[a], pts[b], pts[d]
+        n = (q - p).cross(w - p)
+        out = (p + q + w) / 3 - Vector(c)
+        if n.dot(out) < 0:
+            q, w = w, q
+        tri(coll, "foliage", tuple(p), tuple(q), tuple(w))
+
+
+def limb(coll, a, b, r0, r1, seg=7):
+    """a tapered round limb between two Blender points (bark)"""
+    A, Bv = Vector(a), Vector(b)
+    d = (Bv - A).normalized()
+    up = Vector((0, 0, 1)) if abs(d.z) < 0.95 else Vector((1, 0, 0))
+    s1 = d.cross(up).normalized()
+    s2 = d.cross(s1).normalized()
+    ring = [s1 * math.cos(2 * math.pi * i / seg) + s2 * math.sin(2 * math.pi * i / seg) for i in range(seg)]
+    for i in range(seg):
+        p, q = ring[i], ring[(i + 1) % seg]
+        quad(coll, "bark", tuple(A + p * r0), tuple(A + q * r0), tuple(Bv + q * r1), tuple(Bv + p * r1), 0)
+
+
+def tree(x, y, z0=0.0, h=9.0, seed=0):
+    """a broadleaf park tree (a London plane / lime, h metres): a leaning, tapering trunk that forks into
+    main limbs, and a domed crown of irregular leaf clumps round them, its underside lifted ~3 m clear
+    of the ground. Trunk and limbs are solid; the crown stops players only (bullets and sight go through)."""
+    rnd = random.Random(seed * 7919 + 13)
+    base = Vector(B(x, y, z0))
+    fork_z = h * (0.36 + rnd.random() * 0.06)
+    lean = Vector((rnd.uniform(-0.25, 0.25), rnd.uniform(-0.25, 0.25), 0))
+    fork = base + Vector((0, 0, fork_z)) + lean
+    r_trunk = 0.17 + h * 0.012
+    # root flare, then the trunk in two pieces so it bends a little
+    limb(P, tuple(base + Vector((0, 0, -0.05))), tuple(base + Vector((0, 0, 0.5))), r_trunk * 1.45, r_trunk * 1.05)
+    mid = base + Vector((0, 0, fork_z * 0.55)) + lean * 0.4
+    limb(P, tuple(base + Vector((0, 0, 0.5))), tuple(mid), r_trunk * 1.05, r_trunk * 0.95)
+    limb(P, tuple(mid), tuple(fork), r_trunk * 0.95, r_trunk * 0.8)
+    # the crown: an ellipsoid over the fork
+    cz = z0 + h * 0.66
+    rx = h * (0.3 + rnd.random() * 0.05)
+    rz = h * 0.3
+    centre = Vector((base.x + lean.x * 1.5, base.y + lean.y * 1.5, cz))
+    n_limbs = 4 + rnd.randrange(2)
+    a0 = rnd.random() * 6.283
+    for i in range(n_limbs):
+        a = a0 + 6.283 * i / n_limbs + rnd.uniform(-0.3, 0.3)
+        tip = centre + Vector((math.cos(a) * rx * 0.62, math.sin(a) * rx * 0.62, rnd.uniform(-0.1, 0.35) * rz))
+        elbow = fork.lerp(tip, 0.5) + Vector((0, 0, 0.4))
+        limb(P, tuple(fork), tuple(elbow), r_trunk * 0.6, r_trunk * 0.38, seg=6)
+        limb(P, tuple(elbow), tuple(tip), r_trunk * 0.38, r_trunk * 0.14, seg=5)
+    limb(P, tuple(fork), tuple(centre + Vector((0, 0, rz * 0.5))), r_trunk * 0.55, r_trunk * 0.15, seg=6)
+    # leaf clumps: a core plus a shell of overlapping balls (golden-angle spread), bigger low down
+    leaf_clump(SO, tuple(centre), min(rx, rz) * 0.82, rnd)
+    n = 14
+    for i in range(n):
+        zf = 1 - 2 * (i + 0.5) / n                      # −1 … 1 bottom to top
+        zf = zf * 0.85
+        ring = math.sqrt(max(0.0, 1 - zf * zf))
+        a = i * 2.39996 + rnd.uniform(-0.25, 0.25)
+        p = centre + Vector((math.cos(a) * ring * rx * 0.72, math.sin(a) * ring * rx * 0.72, zf * rz * 0.7))
+        leaf_clump(SO, tuple(p), (0.32 + rnd.random() * 0.14) * h * (0.42 if zf > 0.4 else 0.5), rnd)
+
+
 def city():
     """the park (trees, benches, lamps), lamp standards along the street, the omnibus shelter, the cab rank"""
-    for (x, y) in ((6, 108), (8, 114), (28, 108), (8, 122), (24, 124), (32, 118), (4, 128), (34, 128)):
-        cyl(P, "bark", x, y, 0.22, 0.0, 3.2, seg=6)
-        cyl(P, "foliage", x, y, 2.2, 2.6, 4.6, seg=8)
-        cyl(P, "foliage", x, y, 1.5, 4.6, 5.9, seg=8)
+    for k, (x, y) in enumerate(((6, 108), (8, 114), (28, 108), (8, 122), (24, 124), (32, 118), (4, 128), (34, 128))):
+        tree(x, y, 0.0, h=8.5 + (k * 37 % 5) * 0.8, seed=k)
     for (x0_, x1_, y) in ((6, 12, 116), (16, 22, 128)):
         bench_row(x0_, x1_, y)
     for x in range(8, 240, 18):
@@ -2032,8 +2148,8 @@ def fence_run(a, b, z0, h=3.5):
 class Frame:
     """a vehicle's own axes: u along its length from the back (0) to the front (L), v across (+ left), z up;
     `rect` is its map footprint and `facing` the way its front points (+x −x +y −y)"""
-    def __init__(self, rect, facing):
-        self.r, self.f = rect, facing
+    def __init__(self, rect, facing, z=0.0):
+        self.r, self.f, self.z = rect, facing, z
         x0, y0, x1, y1 = rect
         self.L = (x1 - x0) if facing in ("+x", "-x") else (y1 - y0)
 
@@ -2049,27 +2165,28 @@ class Frame:
 
     def box(self, mat, u0, u1, v0, v1, z0, z1, cell=0):
         (ax, ay), (bx, by) = self.map(u0, v0), self.map(u1, v1)
-        box(P, mat, min(ax, bx), min(ay, by), max(ax, bx), max(ay, by), z0, z1, cell=cell)
+        box(P, mat, min(ax, bx), min(ay, by), max(ax, bx), max(ay, by), z0 + self.z, z1 + self.z, cell=cell)
 
     def wheel(self, u, v, r, w=0.14, mat="loco_black", hub="cream"):
         x, y = self.map(u, v)
         x0, y0, x1, y1 = self.r
+        zc = r + self.z
         if self.f in ("+x", "-x"):
             out = 1 if y > (y0 + y1) / 2 else -1
-            cyl_y(P, mat, x, y - w / 2, y + w / 2, r, r, seg=14)
-            disc(P, hub, B(x, y + out * (w / 2 + 0.005), r), (0, -out, 0), r * 0.45, seg=10)
+            cyl_y(P, mat, x, y - w / 2, y + w / 2, zc, r, seg=14)
+            disc(P, hub, B(x, y + out * (w / 2 + 0.005), zc), (0, -out, 0), r * 0.45, seg=10)
         else:
             out = 1 if x > (x0 + x1) / 2 else -1
-            cyl_x(P, mat, x - w / 2, x + w / 2, y, r, r, seg=14)
+            cyl_x(P, mat, x - w / 2, x + w / 2, y, zc, r, seg=14)
             for sg in (-1, 1):
-                disc(P, mat, B(x + sg * w / 2, y, r), (sg, 0, 0), r, seg=14)
-            disc(P, hub, B(x + out * (w / 2 + 0.005), y, r), (out, 0, 0), r * 0.45, seg=10)
+                disc(P, mat, B(x + sg * w / 2, y, zc), (sg, 0, 0), r, seg=14)
+            disc(P, hub, B(x + out * (w / 2 + 0.005), y, zc), (out, 0, 0), r * 0.45, seg=10)
 
 
-def vintage_car(rect, facing, body="maroon", taxi=False):
+def vintage_car(rect, facing, body="maroon", taxi=False, z=0.0):
     """a 1930s motor car (4.5 × 1.8 m): long bonnet with a brass radiator, upright cabin, separate wings,
     running boards, spoked-look wheels with cream hubs, lamps, a spare wheel at the back"""
-    F = Frame(rect, facing)
+    F = Frame(rect, facing, z)
     Lv = F.L
     k = Lv / 4.5
     F.box("loco_black", 0.3 * k, 4.2 * k, -0.7, 0.7, 0.32, 0.5)                          # chassis
@@ -2087,7 +2204,7 @@ def vintage_car(rect, facing, body="maroon", taxi=False):
         F.wheel(3.6 * k, v * 0.78, 0.38)
         F.wheel(0.7 * k, v * 0.78, 0.38)
         x, y = F.map(4.35 * k, v * 0.62)
-        cyl(P, "brass", x, y, 0.11, 0.95, 1.18, seg=8)
+        cyl(P, "brass", x, y, 0.11, 0.95 + z, 1.18 + z, seg=8)
     F.box("loco_black", 0.05 * k, 0.25 * k, -0.35, 0.35, 0.5, 1.1)
     if taxi:
         F.box("lamp_glass", 1.2 * k, 1.6 * k, -0.15, 0.15, 1.97, 2.12)
@@ -2102,7 +2219,9 @@ def vintage_bus(rect, facing):
     F.box("maroon", 0.0, Lv - 1.9, -1.45, 1.45, 0.7, 1.55, cell=1.5)
     F.box("cream", 0.0, Lv - 1.9, -1.45, 1.45, 2.35, 2.75, cell=1.5)
     F.box("window_dark", 0.2, Lv - 2.0, -1.43, 1.43, 1.55, 2.35, cell=1.5)
-    u = 0.2
+    F.box("cream", 0.0, 0.2, -1.45, 1.45, 1.55, 2.35)                                          # rear panel
+    F.box("window_dark", -0.02, 0.0, -1.0, 1.0, 1.65, 2.25)                                     # rear window
+    u = 1.35
     while u < Lv - 2.0:
         F.box("cream", u, u + 0.12, -1.45, 1.45, 1.55, 2.35)
         u += 1.15
@@ -2133,8 +2252,9 @@ def city_vehicles():
         vintage_car((x, 112.2, x + 1.8, 116.7), "+y", body=cars[k])
     for k, x in enumerate((194, 212, 227)):
         vintage_car((x, 125.3, x + 1.8, 129.8), "-y", body=cars[k + 5])
-    vintage_car((15.2, 60, 17.0, 64.5), "-y", body="maroon")
-    vintage_car((19.0, 80, 20.8, 84.5), "+y", body="loco_green")
+    # the two on the road bridge stand on its deck (+7), not at street level under it
+    vintage_car((15.2, 60, 17.0, 64.5), "-y", body="maroon", z=Z_UP)
+    vintage_car((19.0, 80, 20.8, 84.5), "+y", body="loco_green", z=Z_UP)
 
 
 def backdrop():

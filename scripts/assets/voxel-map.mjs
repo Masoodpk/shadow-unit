@@ -337,6 +337,40 @@ if (args.probe) {
   }
 }
 console.log("reachable cells", reach.size, "≈", (reach.size * 0.25).toFixed(0), "m²");
+// Floors you can't walk to but can DROP onto (a track trench, a pit, a yard below a ledge): they get
+// collision too — only the walkable area gets nav nodes, but nobody who jumps down falls out of the map.
+// Every floor lower than a step next to a reachable cell, and everything connected to it the same way.
+const touch = new Map();
+{
+  const seeds = [];
+  const queue = [...reach.values()];
+  const seen = new Set(reach.keys());
+  while (queue.length) {
+    const [cx, cz, y] = queue.pop();
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx, nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= CX || nz >= CZ) continue;
+      // the floor you'd land on stepping over the edge: the neighbour's highest floor up to a step above you
+      let ny = -1;
+      for (const f of floors.get(nz * CX + nx) ?? []) if (f <= y + 4 && f > ny) ny = f;
+      if (ny < 0 || ny >= y - 4) continue; // no floor there, or it's a step, not a drop
+      {
+        const k = key(nx, nz, ny);
+        if (seen.has(k)) continue;
+        const comp = fill([nx, nz, ny], new Map());
+        for (const [kk, v] of comp) {
+          if (seen.has(kk)) continue;
+          seen.add(kk);
+          touch.set(kk, v);
+          queue.push(v);
+        }
+        seeds.push(k);
+      }
+    }
+  }
+  console.log("drop-only floor cells (collision, no nav)", touch.size, "≈", (touch.size * 0.25).toFixed(0), "m²");
+}
+const solidReach = [...reach.values(), ...touch.values()];
 // --report-cut: walkable floor left out of play, in big pieces (a room nobody can get into?)
 if (args["report-cut"]) {
   const seen = new Set(reach.keys());
@@ -364,7 +398,7 @@ const wy = (y) => min[1] + y * VS;
 
 // ------------------------------------------------------------------ collision boxes inside the playable region
 let rx0 = Infinity, rx1 = -Infinity, rz0 = Infinity, rz1 = -Infinity, ry0 = Infinity, ry1 = -Infinity;
-for (const [cx, cz, y] of reach.values()) {
+for (const [cx, cz, y] of solidReach) {
   rx0 = Math.min(rx0, cx); rx1 = Math.max(rx1, cx); rz0 = Math.min(rz0, cz); rz1 = Math.max(rz1, cz);
   ry0 = Math.min(ry0, y); ry1 = Math.max(ry1, y);
 }
@@ -420,7 +454,7 @@ function declutter(bits, minSize) {
   const D = 3;
   const mask = new Int16Array(CX * CZ).fill(-1); // highest reachable floor y in the dilated cell (or -1)
   const lowM = new Int16Array(CX * CZ).fill(32767);
-  for (const [cx, cz, y] of reach.values())
+  for (const [cx, cz, y] of solidReach)
     for (let dz = -D; dz <= D; dz++)
       for (let dx = -D; dx <= D; dx++) {
         const nx = cx + dx, nz = cz + dz;

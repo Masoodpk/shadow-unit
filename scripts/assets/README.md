@@ -27,6 +27,7 @@ The other commands used for the current assets:
 (Install all the no-save tools in one `npm i --no-save …` command: npm removes earlier no-save packages on every install.)
 
 
+| `prep-uzi.mjs` | The UZI with its own arms (1Matzh, CC BY 4.0): helper planes and backdrop card dropped, keys resampled, textures → WebP, and its broken skin repaired (one affine map between vertices and bind matrices, solved from the bones) | `node prep-uzi.mjs ~/Downloads/uzi__first_person_animations_2026_remake.glb ../../src/assets/weapons/uzi.glb 1024` |
 | `prep-metro.mjs` | The Underground: "Roscoe Street - Underground" (Neo_minigan, CC BY 4.0): root tilt removed, one mesh per material, WebP ≤ 1024 px | `node prep-metro.mjs ~/Downloads/roscoe_street_-_underground.glb ../../src/assets/maps/metro.glb 1024` |
 | `prep-soldiers.mjs` | The Underground's soldiers (Polish soldier, Soldier Girl, Winter Soldier): textures → WebP, optional simplify (was `prep-city.mjs`) | `node prep-soldiers.mjs soldier ~/Downloads/polish_soldier.glb ../../src/assets/soldier_polish.glb 1024 0.5` |
 

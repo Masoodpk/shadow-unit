@@ -3,7 +3,7 @@
  * player or the weapon state machine — tune feel here.
  */
 
-export type WeaponId = "carbine" | "rifle" | "ak47" | "m5" | "vssk" | "glock" | "vector" | "flashbang" | "knife" | "m72" | "dzj08";
+export type WeaponId = "carbine" | "rifle" | "ak47" | "m5" | "vssk" | "glock" | "vector" | "flashbang" | "knife" | "m72" | "dzj08" | "uzi";
 /**
  * auto = hold to fire; semi = one shot per click; pump = one shot per click + pump cycle;
  * throw = grenade (press = pin, release = throw); melee = knife (click = slash, aim button = heavy stab).
@@ -244,6 +244,56 @@ export const VECTOR_CLIPS = {
   reloadEmptyBolt: 3.02,
   idle: 1.74,
 };
+
+/**
+ * The UZI's own clips (uzi.glb, one animation group each, 60 fps), read off the magazine and cocking-handle
+ * bones: the tactical reload pulls the magazine at 0.27 s and seats the new one at 1.05 s (of 2.03); the
+ * empty reload drops it at 0.27 s, seats the new one at 1.30 s and racks the cocking handle on top of the
+ * receiver 2.20–2.55 s (of 3.70). The authored equip settles into the idle pose at 2.0 s; inspect is 5.6 s.
+ */
+export const UZI_CLIPS = {
+  draw: [0, 2.0] as [number, number],
+  holster: [0, 0.7] as [number, number],
+  fire: [0, 0.27] as [number, number],
+  idle: 2.47,
+  reload: [0, 2.03] as [number, number],
+  reloadMagOut: 0.27,
+  reloadSeat: 1.05,
+  reloadEmpty: [0, 3.7] as [number, number],
+  reloadEmptyMagOut: 0.27,
+  reloadEmptySeat: 1.3,
+  reloadEmptyBolt: 2.5,
+  inspect: [0, 5.6] as [number, number],
+};
+
+function uziReload(speed: number): ReloadPhase[] {
+  const C = UZI_CLIPS;
+  const r = clipPhase("reload", C.reload, speed, {
+    onlyIfNotEmpty: true,
+    cancelAt: 1.3,
+    events: [
+      { at: 0.1, type: "sound", sound: "foley" },
+      { at: C.reloadMagOut, type: "sound", sound: "vectorMagOut" },
+      { at: C.reloadSeat, type: "sound", sound: "vectorMagIn" },
+      { at: C.reloadSeat, type: "transferMag" },
+      { at: 1.5, type: "sound", sound: "foley" },
+    ],
+  });
+  const e = clipPhase("reloadEmpty", C.reloadEmpty, speed, {
+    onlyIfEmpty: true,
+    cancelAt: 2.8,
+    events: [
+      { at: 0.1, type: "sound", sound: "foley" },
+      { at: C.reloadEmptyMagOut, type: "sound", sound: "vectorMagOut" },
+      { at: C.reloadEmptySeat, type: "sound", sound: "vectorMagIn" },
+      { at: C.reloadEmptySeat, type: "transferMag" },
+      { at: C.reloadEmptyBolt, type: "sound", sound: "vectorBolt" },
+    ],
+  });
+  r.clipName = "rig|Reload";
+  e.clipName = "rig|Reload_Empty";
+  return [r, e];
+}
 
 function vectorReload(speed: number): ReloadPhase[] {
   const C = VECTOR_CLIPS;
@@ -583,6 +633,36 @@ export const WEAPONS: Record<WeaponId, WeaponConfig> = {
     reload: vectorReload(1.18),
   },
 
+  // UZI (open bolt, 9 mm): slower than the Vector, harder-hitting per round, more climb; 32-round stick mag
+  uzi: {
+    id: "uzi",
+    slot: 0,
+    displayName: "UZI",
+    fireMode: "auto",
+    rpm: 650,
+    magSize: 32,
+    reserveStart: 192,
+    reserveMax: 320,
+    damage: { base: 25, pellets: 1, headMultiplier: 2.3, limbMultiplier: 0.8, falloffStart: 12, falloffEnd: 35, minDamageScale: 0.5, range: 110 },
+    spread: { hip: 1.4, ads: 0.28, moving: 1.0, air: 2.8, crouchScale: 0.8, perShot: 0.16, maxBloom: 1.8, bloomRecovery: 7 },
+    recoil: { pitch: 0.48, pitchJitter: 0.16, yaw: 0.32, yawBias: 0.06, recovery: 11, recoveryFraction: 0.75, kickBack: 0.01, kickRot: 0.012, adsScale: 0.72 },
+    cycleTime: 0,
+    equipTime: 1.0,
+    holsterTime: 0.35,
+    adsTime: 0.14,
+    adsFovScale: 0.84,
+    adsSensitivity: 0.92,
+    moveSpeedScale: 1.05,
+    adsMoveScale: 0.72,
+    sway: { amount: 0.85, adsScale: 0.16, smoothing: 15 },
+    muzzleFlash: { scale: 0.15, length: 0.24, duration: 0.035, tint: [1.0, 0.78, 0.48] },
+    sounds: { fire: "vectorShot", dry: "dryFire", tail: "smgTail", fireVolume: 0.8 },
+    ejectOn: "fire",
+    tracerEvery: 4,
+    inputBuffer: 0,
+    reload: uziReload(1.0),
+  },
+
   flashbang: {
     id: "flashbang",
     slot: 0,
@@ -807,10 +887,10 @@ export function slotOf(cfg: WeaponConfig): LoadoutSlot {
   if (cfg.fireMode === "throw") return "grenade";
   if (cfg.projectile) return "launcher";
   if (cfg.id === "glock") return "secondary";
-  if (cfg.id === "vector") return "smg";
+  if (cfg.id === "vector" || cfg.id === "uzi") return "smg";
   if (cfg.id === "vssk") return "sniper";
   return "primary";
 }
 
-export const WEAPON_ORDER: WeaponId[] = ["rifle", "ak47", "m5", "vssk", "glock", "vector", "flashbang", "knife", "m72", "dzj08", "carbine"];
+export const WEAPON_ORDER: WeaponId[] = ["rifle", "ak47", "m5", "vssk", "glock", "vector", "flashbang", "knife", "m72", "dzj08", "carbine", "uzi"];
 WEAPON_ORDER.forEach((id, i) => (WEAPONS[id].slot = i));

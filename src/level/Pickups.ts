@@ -37,13 +37,13 @@ export interface Pickup {
 }
 
 /** real overall lengths (m) the world models are scaled to */
-const LENGTH: Partial<Record<WeaponId, number>> = { carbine: 0.9, rifle: 0.84, ak47: 0.88, m5: 0.74, vssk: 1.0, glock: 0.19, vector: 0.62, m72: 0.88, dzj08: 1.0 };
+const LENGTH: Partial<Record<WeaponId, number>> = { carbine: 0.9, rifle: 0.84, ak47: 0.88, m5: 0.74, vssk: 1.0, glock: 0.19, vector: 0.62, m72: 0.88, dzj08: 1.0, uzi: 0.62 };
 /**
  * Guns whose model is skinned to their own arms on one skeleton (the Vector's Fennec viewmodel): the
  * meshes whose material name matches are the gun, baked out of the rig's current pose into static copies.
  * Without this the copier found no unskinned geometry and laid a plain box on the crate.
  */
-const SKINNED_GUN: Partial<Record<WeaponId, RegExp>> = { vector: /^weapon_vm_sm_victor_(?!bullet)/ };
+const SKINNED_GUN: Partial<Record<WeaponId, RegExp>> = { vector: /^weapon_vm_sm_victor_(?!bullet)/, uzi: /^(material_7|UZI_Magazine)/ };
 
 /**
  * Things lying around the stage to pick up, like any shooter: guns (on a crate, or dropped by a dead
@@ -178,10 +178,11 @@ export class Pickups {
 
   /** the gun's own meshes from a first-person rig, re-rooted, laid on its side, real size */
   /** a gun's world model, for a soldier's hand (the boss's sidearm): a fresh copy, centred, +Z its muzzle */
-  sidearm(id: WeaponId): TransformNode | null {
+  sidearm(id: WeaponId, clone = false): TransformNode | null {
     const t = this.models.get(id);
     if (!t) return null;
-    const c = t.instantiateHierarchy(null, undefined, (src, clone) => (clone.name = src.name + "_side"));
+    // (clone: its own meshes, not instances — for a soldier's long gun, drawn while the template stays hidden)
+    const c = t.instantiateHierarchy(null, clone ? { doNotInstantiate: true } : undefined, (src, cl) => (cl.name = src.name + "_side"));
     if (!c) return null;
     c.setEnabled(true);
     for (const m of c.getChildMeshes(false)) m.setEnabled(true);
@@ -375,7 +376,7 @@ export class Pickups {
    * of ammo or a crate of grenades beside it, rocket crates, ammo stacked by the wall. The first
    * cache is near the insertion point; the rest are spread over the base (farthest-point).
    */
-  populate(walls: WallSpot[], start: Vector3, seed: number, fits: (p: Vector3) => boolean = () => true) {
+  populate(walls: WallSpot[], start: Vector3, seed: number, fits: (p: Vector3) => boolean = () => true, extra = 0) {
     const rnd = mulberry32(seed);
     const caches: ({ kind: "weapon"; id: WeaponId } | { kind: Exclude<PickupKind, "weapon">; look?: string })[][] = [
       [{ kind: "ammo" }, { kind: "ammo", look: "pack" }],
@@ -384,12 +385,33 @@ export class Pickups {
       [{ kind: "weapon", id: "ak47" }, { kind: "ammo" }],
       [{ kind: "weapon", id: "m72" }, { kind: "rockets" }],
       [{ kind: "weapon", id: "vector" }, { kind: "grenades" }],
+      // (the UZI: an SMG — it swaps for the Vector if you carry one)
+      [{ kind: "weapon", id: "uzi" }, { kind: "ammo" }],
       [{ kind: "weapon", id: "vssk" }, { kind: "ammo", look: "pack" }],
       [{ kind: "rockets" }, { kind: "ammo" }],
       [{ kind: "weapon", id: "m5" }, { kind: "grenades" }],
       [{ kind: "weapon", id: "dzj08" }, { kind: "rockets" }],
       [{ kind: "ammo", look: "pack" }, { kind: "grenades" }],
     ];
+    // a big stage asks for more (TERMINUS: room after empty room): every gun again, with ammo or grenades
+    // beside it, and ammo-only stocks in between
+    const more: typeof caches = [
+      [{ kind: "weapon", id: "ak47" }, { kind: "ammo" }],
+      [{ kind: "ammo" }, { kind: "grenades" }],
+      [{ kind: "weapon", id: "uzi" }, { kind: "ammo", look: "pack" }],
+      [{ kind: "weapon", id: "carbine" }, { kind: "grenades" }],
+      [{ kind: "ammo", look: "pack" }, { kind: "ammo" }],
+      [{ kind: "weapon", id: "vector" }, { kind: "ammo" }],
+      [{ kind: "weapon", id: "m5" }, { kind: "ammo", look: "pack" }],
+      [{ kind: "rockets" }, { kind: "grenades" }],
+      [{ kind: "weapon", id: "vssk" }, { kind: "ammo" }],
+      [{ kind: "ammo" }, { kind: "grenades" }],
+      [{ kind: "weapon", id: "m72" }, { kind: "rockets" }],
+      [{ kind: "weapon", id: "ak47" }, { kind: "grenades" }],
+      [{ kind: "ammo", look: "pack" }, { kind: "ammo" }],
+      [{ kind: "weapon", id: "uzi" }, { kind: "ammo" }],
+    ];
+    for (let i = 0; i < extra; i++) caches.push(more[i % more.length]);
     const away = walls.filter((w) => Vector3.Distance(w.pos, start) > 5);
     if (!away.length) return;
     const chosen: WallSpot[] = [];

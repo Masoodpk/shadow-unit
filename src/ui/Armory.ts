@@ -37,6 +37,7 @@ const META: Partial<Record<WeaponId, Meta>> = {
   carbine: { group: "RIFLES", kind: "CARBINE", source: "SUPPLY CACHE", blurb: "A short, quick-handling carbine with a tight spread. Three to the body, and every headshot is a kill." },
   m5: { group: "RIFLES", kind: "COMPACT RIFLE", source: "SUPPLY CACHE", blurb: "Light and quick to the shoulder, very controllable. Loses its punch past mid range." },
   vector: { group: "SMG", kind: "SUBMACHINE GUN", source: "SUPPLY CACHE", blurb: "The fastest trigger in the unit at 1,000 rounds a minute, with almost no climb. Brutal up close, weak at range." },
+  uzi: { group: "SMG", kind: "SUBMACHINE GUN", source: "SUPPLY CACHE", blurb: "The classic open-bolt 9 mm. Slower than the Vector and it climbs more, but each round hits harder and the 32-round mag lasts." },
   vssk: { group: "SNIPER", kind: "SUPPRESSED SNIPER", source: "SUPPLY CACHE", blurb: "One shot, one soldier: anywhere on the body at any range the map has. Five rounds, slow bolt, quiet." },
   glock: { group: "SIDEARM", kind: "PISTOL", source: "STARTING KIT", blurb: "Your backup when the rifle runs dry. Quick to draw, but it takes six to the body (three to the head) to drop a soldier." },
   m72: { group: "LAUNCHERS", kind: "ROCKET LAUNCHER", source: "SUPPLY CACHE", blurb: "A single rocket that flattens a group and anything near the blast. Reload is slow: make it count." },

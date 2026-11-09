@@ -20,6 +20,7 @@ import type { ActionKey } from "./EnemyAnimationController";
 import { BOSS, RAGDOLL, REFLEX, TACTICS } from "./EnemyConfig";
 import type { RagdollImpulse } from "./EnemyRagdoll";
 import { difficulty } from "../config/difficulty";
+import { WEAPONS, type WeaponId } from "../config/weapons";
 
 /** AKS-74U magazine */
 const ENEMY_MAG = 30;
@@ -240,6 +241,23 @@ export class Enemy {
   private hp = 0;
   private hy = 0;
   private rc = 0;
+  /**
+   * The gun he carries (and drops when he dies): one of the player's own. It sets his magazine, the gap
+   * between rounds in a burst (its fire rate) and how hard each round hits (its damage, scaled round the
+   * standard rifle's), so an Uzi gunner sprays fast, lighter rounds and an AK gunner hits hardest.
+   */
+  gunId: WeaponId = "ak47";
+  gunMag = ENEMY_MAG;
+  private gunInterval = ENEMY.burstInterval;
+  private gunDamage = 1;
+  setGun(id: WeaponId) {
+    const cfg = WEAPONS[id];
+    this.gunId = id;
+    this.gunMag = cfg.magSize;
+    this.mag = cfg.magSize;
+    this.gunInterval = clamp(60 / cfg.rpm, 0.065, 0.13);
+    this.gunDamage = clamp(cfg.damage.base / 34, 0.7, 1.25);
+  }
   /** rounds left in the magazine; reloadT = progress 0..1 (or -1) */
   mag = ENEMY_MAG;
   reloadT = -1;
@@ -410,7 +428,7 @@ export class Enemy {
     this.pistolW = 0;
     this.weaponT = 0;
     this.swapT = 0;
-    this.mag = ENEMY_MAG;
+    this.mag = this.gunMag;
     this.reloadT = -1;
     this.burstShots = 0;
     this.velX = this.velZ = 0;
@@ -1609,7 +1627,7 @@ export class Enemy {
     ev(RELOAD_EVENTS.bolt, "akBolt", 0.8);
     if (this.reloadT >= 1) {
       this.reloadT = -1;
-      this.mag = ENEMY_MAG;
+      this.mag = this.gunMag;
     }
   }
   /** string of rounds ended → the recorded echo tail */
@@ -1797,7 +1815,7 @@ export class Enemy {
         } else {
           this.shoot();
           this.burstLeft--;
-          this.burstTimer = pistol ? PISTOL_INTERVAL * rand(0.85, 1.2) : ENEMY.burstInterval * rand(0.95, 1.08);
+          this.burstTimer = pistol ? PISTOL_INTERVAL * rand(0.85, 1.2) : this.gunInterval * rand(0.95, 1.08);
           if (pistol && this.pistolMag <= 0) {
             // the sidearm's dry: back to the rifle (and reload it)
             this.burstLeft = 0;
@@ -1898,7 +1916,7 @@ export class Enemy {
     } else if (hit) {
       ctx.fx.tracer(mp, this.tmp);
       ctx.breakGlass?.(mp, this.tmp);
-      pl.takeDamage(rand(ENEMY.damageMin, ENEMY.damageMax), this.collider.position);
+      pl.takeDamage(rand(ENEMY.damageMin, ENEMY.damageMax) * this.gunDamage, this.collider.position);
     } else {
       // miss: aim at a point beside the player, continue through, impact the world (never through walls)
       const off = rand(0.6, 1.6);

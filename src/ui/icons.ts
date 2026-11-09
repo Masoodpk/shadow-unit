@@ -75,6 +75,7 @@ export const WEAPON_ICONS: Record<string, string> = {
   vssk: SNIPER,
   glock: PISTOL,
   vector: SMG,
+  uzi: SMG,
   knife: KNIFE,
   m72: LAUNCHER,
   dzj08: ROCKET_TUBE,

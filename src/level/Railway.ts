@@ -129,7 +129,9 @@ function stitch(nav: NavGraph) {
 }
 
 /** soldiers per zone (26 in all) and the zone of a Babylon position */
-const QUOTA: Record<string, number> = { hall: 7, station: 4, upper: 4, underground: 4, north: 2, goods: 2, depot: 2, city: 1 };
+// 31 in all (five more than at first: a huge map felt empty) — the extra ones in the train hall, the north
+// building, the goods yard and the depot, the big zones that had the fewest
+const QUOTA: Record<string, number> = { hall: 9, station: 4, upper: 4, underground: 4, north: 3, goods: 3, depot: 3, city: 1 };
 function zoneOf(p: Vector3) {
   const x = 64 - p.x, y = p.z + 48;
   if (p.y < -3) return "underground";
@@ -209,7 +211,7 @@ export async function buildRailway(scene: Scene, env: Environment, progress: (p:
   }
   const target = marker("mission_target") ?? M(132, 23, 0);
   const playerYaw = Math.atan2(target.x - start.p.x, target.z - start.p.z);
-  // a big map: 26 of them, by zone, so the fight is where the map is (spread farthest-first inside each
+  // a big map: 31 of them, by zone, so the fight is where the map is (spread farthest-first inside each
   // zone, from a well-spread candidate list; a zone short of candidates gives its places to the rest)
   const pool = pickEnemySpawns(nav, start.p, 96);
   const enemySpawns: EnemySpawn[] = [];
@@ -247,7 +249,7 @@ export async function buildRailway(scene: Scene, env: Environment, progress: (p:
     }
     taken.set(z, have);
   }
-  while (enemySpawns.length < 26 && left.length) enemySpawns.push(left.shift()!);
+  while (enemySpawns.length < 31 && left.length) enemySpawns.push(left.shift()!);
 
   let floorMin = Infinity, floorMax = -Infinity;
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
@@ -277,9 +279,23 @@ export async function buildRailway(scene: Scene, env: Environment, progress: (p:
     surfaceAt: visibleSurface(scene, container.meshes),
     openSky: openSkyTest(scene, container.meshes),
     wallAt: wallTest(scene, container.meshes),
-    doors: (data.doors ?? []).filter((d) => d[5] < 2.85),
+    doors: DOORS,
   };
 }
+
+/**
+ * The hinged doors: the two timber waiting rooms on the island platforms (rws_build.py waiting_room), a door
+ * in each long side, 1.2 × 2.2 m in a 12 cm wall. Declared rather than taken from the voxel scan's doorway
+ * finder: that measured these openings 20 cm narrow (the leaf left a gap you could see the room through) and
+ * also hung "doors" in the open between the two posts of every platform number board and the omnibus
+ * shelter's columns. Rows: x, floor y, z, axis (0 = spans X), width, height, wall depth (Babylon metres).
+ */
+const DOORS: number[][] = [];
+for (const [kx, cy] of [[124, 76], [56, 56]])
+  for (const y of [cy - 1.6, cy + 1.6]) {
+    const p = M(kx + 3.0, y, 0.01);
+    DOORS.push([p.x, p.y, p.z, 0, 1.2, 2.2, 0.12]);
+  }
 
 /**
  * The baked light is a soft, hazy late morning: the sun from the south-east, 40° up (scripts/railway/rws_bake.py).

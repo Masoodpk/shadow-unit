@@ -21,6 +21,24 @@ or ctrl+click on a Mac) aims, the next one stops. While aimed, a normal click fi
 
 ---
 
+## Soldiers carry every gun, more TERMINUS, the underground line (November 9)
+
+- **Soldiers use the unit's guns.** Each soldier (not the boss) carries an M4, AK-47, Tactical Carbine, M5, Vector or UZI, spread evenly. He holds that gun's own model (`SoldierSkin.holdGun`: its grip under his right hand where the AKS's was, `HELD_GRIP` in `Game.ts`), fires it at its rate with damage scaled to it, uses its magazine size, and **drops that gun** when he dies. Kill him and you can take it.
+- **TERMINUS: 31 hostiles** (5 more: train hall, north building, goods yard, depot) and **14 more supply caches** in its rooms (guns with ammo, grenades or rockets, and ammo stocks). The UZI is in three of them.
+- **The underground line:** jumping down onto the track dropped you out of the map (the collision builder only gave collision to floor reachable on foot). There are now steps out of the trench at both platform ends. `voxel-map.mjs` also gives collision to any floor you can drop onto (a pit, a trench, a yard below a ledge), without nav nodes. The booking hall's stair down to the underground was railed off at its head; the railing now guards the drop at its far end instead.
+- **Armory:** the UZI has its picture (`src/assets/armory/uzi.webp`, rendered in Blender from `uzi.glb`).
+
+## TERMINUS fixes and the UZI (November 8)
+
+- **Falling through the floor.** The collision builder only gives collision to floor it can reach by walking, and the north building's corridor dado (a 1.2 m panel) ran straight across every room doorway, so the rooms, the **control room** (the mission target) and the goods dock outside them had no floor: you dropped out of the map there. The dado now stops at each doorway. Also opened: the chemist's shop (sealed behind the booking office's back wall) and the subway's emergency stair, which came up into a pit railed in on three sides.
+- **Cars in the air.** The two motor cars on the west road bridge were built at street level, under the deck (+7). They now stand on it (`vintage_car(..., z=)`).
+- **InterCity 125.** The power car arrived with its cab at the coach end; it's turned so the cab leads at the platform end (`TURN` in `rws_build.py`).
+- **Doors.** The waiting rooms' doors were sized 1.0 m in a 1.2 m doorway (you could see into the room past them), and the doorway finder also hung doors in the open between the posts of the platform number boards and the omnibus shelter. `Railway.ts` now declares the four real doors (`DOORS`). The "WAITING ROOM" lettering moved onto the valance, which used to cut it up.
+- **Boards in the air.** "CALDER WAY" hung over the road bridge's stair head with nothing holding it, and the depot's "AUTHORISED PERSONS ONLY" posts stopped at street level, 1.2 m above the yard. Both stand on posts on their own floor (`sign(..., floor=)`) and every sign on posts is now lettered on both faces.
+- **The omnibus's back** flickered (z-fighting: a window pillar shared a face with the window band). It has a proper rear panel and window.
+- **Real trees** in the park: a tapering, forking trunk with limbs and a domed crown of lumpy leaf clumps with a generated leaf texture (`tree()`, `textures.mjs` foliage/bark). The bake lifts the light inside crowns (leaves let light through). Crowns stop players but not bullets.
+- **New gun: UZI** (SMG slot, swaps with the Vector). "UZI | First Person Animations (2026 Remake)" by 1Matzh, CC BY 4.0, with its own arms and authored clips: equip, idle, fire, tactical and empty reload (with the cocking handle), inspect (**.**). It's in a supply cache on every stage that has them, and in the Armory. `weapons/UziRig.ts`, `WEAPONS.uzi` / `UZI_CLIPS`, prep in `scripts/assets/prep-uzi.mjs` (36 MB → 8 MB). The file's skin was broken (every engine drew it as long spikes): the prep script repairs it by solving the one affine map between its vertices and its bind matrices.
+
 ## TERMINUS restyled: a Victorian terminus, old trains (November 7)
 
 The first build read like LAST CALL (the airport's glass vaults, tree columns, terrazzo, teal seats, security lanes, escalators). TERMINUS is now a Victorian station on exactly the same layout: every floor, track, stair, doorway, spawn and route is where it was. Plan and the gameplay notes: `docs/railway/HERITAGE-plan.md`.
