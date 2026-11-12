@@ -319,7 +319,7 @@ export class Enemy {
     return !this.dormant && (this.state !== "DEAD" || this.deathT < ENEMY.corpseTime + ENEMY.sinkTime);
   }
   get maxHealth() {
-    return (this.boss ? BOSS.health : ENEMY.maxHealth) * difficulty.k.enemyHealth;
+    return (this.spawn.health ?? (this.boss ? BOSS.health : ENEMY.maxHealth)) * difficulty.k.enemyHealth;
   }
 
   /** which way his body faces (radians, 0 = +Z) — cutscene cameras */
@@ -342,6 +342,10 @@ export class Enemy {
     this.scripted = true;
     this.goTo(target, speed);
     this.faceYaw = Math.atan2(target.x - this.collider.position.x, target.z - this.collider.position.z);
+  }
+  /** a cutscene's over: back to his own judgement where he stands (no knowledge of the player) */
+  release() {
+    this.scripted = false;
   }
   /** straight into the fight with the player (knows where he is) */
   engage() {

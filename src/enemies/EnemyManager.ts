@@ -109,8 +109,9 @@ export class EnemyManager {
     // Winter Soldier its boss — dresses them in those; otherwise the FSB operator and Mark, alternating)
     // (every character the stage loaded, but its boss, takes a turn: Sandstorm and Frostline mix the
     // operators with the S.W.A.T. operator)
-    const own = skins.kinds.filter((k) => k !== "winter");
-    const boss = skins.kinds.includes("winter") ? "winter" : "fsb";
+    // (Sandstorm: the Blackout Operative is its boss — the user's own Meshy character)
+    const own = skins.kinds.filter((k) => k !== "winter" && k !== "blackout");
+    const boss = skins.kinds.includes("winter") ? "winter" : skins.kinds.includes("blackout") ? "blackout" : "fsb";
     this.enemies.forEach((e, i) => e.attachSkin(skins.create(e.boss ? boss : own.length ? own[i % own.length] : i % 2 === 0 ? "fsb" : "mark", e.parts, i)));
   }
 

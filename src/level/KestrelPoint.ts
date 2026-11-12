@@ -16,6 +16,12 @@ export interface EnemySpawn {
   dormant?: boolean;
   /** the stage's boss */
   boss?: boolean;
+  /** his own health (before the difficulty), instead of the soldier's or the boss's */
+  health?: number;
+  /** a named soldier: the mission shows his name over his health bar (Sandstorm's Blackout) */
+  name?: string;
+  /** where a named soldier walks to in his entrance cinematic */
+  entrance?: Vector3;
 }
 
 export interface LevelData {

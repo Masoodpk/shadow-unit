@@ -21,6 +21,7 @@ import polishUrl from "../assets/soldier_polish.glb?url";
 import girlUrl from "../assets/soldier_girl.glb?url";
 import winterUrl from "../assets/winter_soldier.glb?url";
 import swatUrl from "../assets/soldier_swat.glb?url";
+import blackoutUrl from "../assets/soldier_blackout.glb?url";
 import { autoSkin } from "../characters/autoSkin";
 import { retargetSoldierAnims, retargetTable, type RetargetNames } from "./SoldierRetarget";
 
@@ -37,7 +38,7 @@ import { retargetSoldierAnims, retargetTable, type RetargetNames } from "./Soldi
  * soldier girl, and the Winter Soldier as its boss — driven by the same mocap, retargeted onto their
  * own skeletons when the stage loads (SoldierRetarget).
  */
-export type SkinKind = "mark" | "fsb" | "polish" | "girl" | "winter" | "swat";
+export type SkinKind = "mark" | "fsb" | "polish" | "girl" | "winter" | "swat" | "blackout";
 
 export interface ArmMap {
   up: string;
@@ -126,6 +127,20 @@ export const RIGS: Record<SkinKind, RigMap> = {
     RL: { thigh: "RightUpLeg", calf: "RightLeg", foot: "RightFoot", toe: "RightToeBase" },
     hide: ["extras_GUN.001_0", "extras_PISTOL.001_0", "extras_FLASH.001_0"],
   },
+  // the Blackout Operative (the user's own Meshy AI model, rigged by Meshy to a Mixamo skeleton; its
+  // clips dropped and the mesh thinned offline: prep-blackout.mjs). His hands have a thumb and a
+  // middle finger only: index and pinky markers are made at load (RETARGET.blackout.prep)
+  blackout: {
+    url: blackoutUrl,
+    hips: "mixamorig:Hips",
+    spine: ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
+    neck: "mixamorig:Neck",
+    head: "mixamorig:Head",
+    L: { up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1", index: "mixamorig:LeftHandIndex1", pinky: "mixamorig:LeftHandPinky1" },
+    R: { up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1", index: "mixamorig:RightHandIndex1", pinky: "mixamorig:RightHandPinky1" },
+    LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+    RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+  },
   // the S.W.A.T. operator: a Mixamo rig (his own rifle and loose patches dropped offline: prep-swat.mjs)
   swat: {
     url: swatUrl,
@@ -202,6 +217,33 @@ const RETARGET: Partial<Record<SkinKind, { names: RetargetNames; height: number;
         const across = Vector3.Cross(along, new Vector3(0, 0, 1)).normalize().scale(along.length() * 0.5);
         for (const [name, k] of [["Index1", 1], ["Pinky1", -1]] as const) {
           const n = new TransformNode(S + "Hand" + name, hand.getScene());
+          n.parent = hand;
+          n.position.copyFrom(along.scale(0.9).add(across.scale(k)));
+          c.transformNodes.push(n);
+        }
+      }
+    },
+  },
+  blackout: {
+    height: 1.9,
+    names: {
+      hips: "mixamorig:Hips", spine: "mixamorig:Spine", chest: "mixamorig:Spine2", neck: "mixamorig:Neck", head: "mixamorig:Head",
+      L: { clav: "mixamorig:LeftShoulder", up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1" },
+      R: { clav: "mixamorig:RightShoulder", up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1" },
+      LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+      RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+    },
+    prep: (c) => {
+      // (the rig has no index or pinky: two markers either side of each hand's middle, for its grip)
+      const all = c.meshes[0].getDescendants(false) as Node[];
+      for (const S of ["Left", "Right"]) {
+        const hand = findIn(all, `mixamorig:${S}Hand`), mid = findIn(all, `mixamorig:${S}HandMiddle1`);
+        if (!hand || !mid) continue;
+        const along = (mid as TransformNode).position.clone();
+        // across the palm: square to the hand's line and to the palm's own normal
+        const across = Vector3.Cross(along, new Vector3(0, 0, 1)).normalize().scale(along.length() * 0.5);
+        for (const [name, k] of [["Index1", 1], ["Pinky1", -1]] as const) {
+          const n = new TransformNode(`mixamorig:${S}Hand${name}`, hand.getScene());
           n.parent = hand;
           n.position.copyFrom(along.scale(0.9).add(across.scale(k)));
           c.transformNodes.push(n);

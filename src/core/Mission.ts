@@ -142,7 +142,89 @@ export class Mission {
     this.later.push({ t, fn });
   }
 
-  constructor(private host: MissionHost, private cfg: MissionConfig) {}
+  constructor(private host: MissionHost, private cfg: MissionConfig) {
+    // the Blackout Operative's temper, as his health goes: the bar's tint and a line from him
+    host.enemies.onBossPhase = (_e, phase) => {
+      this.hud.bossMood(phase === 1 ? "PRESSED" : "ENRAGED", phase);
+      this.hud.say("BLACKOUT", phase === 1 ? "Not bad. Now I stop playing." : "Enough! You die in this dust.", 3);
+    };
+  }
+
+  // ------------------------------------------------------------------ the Blackout Operative
+  /** his health bar is up */
+  private barOn = false;
+  /** the market's named soldier (null on a stage build without him) */
+  private get blackout() {
+    return this.host.enemies.enemies.find((e) => e.spawn.name) ?? null;
+  }
+  private showBar() {
+    const b = this.blackout;
+    if (!b || !b.alive) return;
+    this.barOn = true;
+    this.hud.bossShow(`THE ${b.spawn.name}`);
+    this.hud.bossMood(b.phase === 0 ? "CALM" : b.phase === 1 ? "PRESSED" : "ENRAGED", b.phase);
+  }
+  /**
+   * The opening: before the briefing, a look into the market — he walks out of the cell's stalls
+   * towards the way you'll come, a close-up, a line from him — then he's back to his own judgement
+   * (he doesn't know where you are yet) and his bar comes up.
+   */
+  private entrance(then: () => void) {
+    const h = this.host;
+    const b = this.blackout;
+    if (!b || !b.alive) return then();
+    const from = b.spawn.pos, to = b.spawn.entrance ?? from;
+    const head = () => b.position.add(new Vector3(0, 0.65, 0));
+    const fwd = to.subtract(from);
+    fwd.y = 0;
+    if (fwd.lengthSquared() < 0.01) fwd.set(Math.sin(b.spawn.yaw), 0, Math.cos(b.spawn.yaw));
+    fwd.normalize();
+    // a camera spot ahead of where he walks to, turned round him until there's room and a clear view
+    const spot = (dist: number, up: number, ang: number) => {
+      const H = to.add(new Vector3(0, 1.55, 0));
+      for (let k = 0; k < 14; k++) {
+        const a = ang + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.32;
+        for (const d of [dist, dist * 0.75, dist * 0.55]) {
+          const dir = new Vector3(fwd.x * Math.cos(a) - fwd.z * Math.sin(a), 0, fwd.x * Math.sin(a) + fwd.z * Math.cos(a));
+          const p = to.add(dir.scale(d)).addInPlaceFromFloats(0, up, 0);
+          if (!h.nav.embedded(p.x, p.y, p.z) && h.nav.clear(p, H)) return p;
+        }
+      }
+      return to.add(fwd.scale(dist)).addInPlaceFromFloats(0, up + 1.5, 0);
+    };
+    const w1 = spot(7.5, 1.1, 0.35), c1 = spot(2.4, 1.5, -0.5);
+    this.play(
+      [
+        {
+          // he walks out towards you, rifle down, the camera easing back in front of him
+          dur: 4.2,
+          from: w1,
+          to: Vector3.Lerp(w1, to.add(new Vector3(0, 1.4, 0)), 0.12),
+          look: () => b.position.add(new Vector3(0, 0.3, 0)),
+          fov: 0.85,
+          enter: () => b.scriptMove(to, 1.5),
+          sub: ["COMMAND", "Eyes on the market. That's Blackout — the Viper's enforcer. Plated up, and he doesn't miss."],
+        },
+        {
+          // close on his face
+          dur: 3,
+          from: c1,
+          to: Vector3.Lerp(c1, head(), 0.18),
+          look: head,
+          fov: 0.6,
+          enter: () => b.faceTo(Math.atan2(c1.x - to.x, c1.z - to.z)),
+          sub: ["BLACKOUT", "Another hero for the kasbah. We bury them in the sand."],
+        },
+      ],
+      () => {
+        b.release();
+        this.showBar();
+        this.hud.card(`THE ${b.spawn.name}`, "The Viper's enforcer · armoured", 3);
+        h.audio.play("radioChirp", { volume: 0.6 });
+        then();
+      },
+    );
+  }
 
   get cinematic() {
     return this.shots.length > 0;
@@ -230,6 +312,12 @@ export class Mission {
     // the dossier's in a different locker each time (never the first one along)
     h.lockers.reset(1 + Math.floor(Math.random() * (h.lockers.list.length - 1)));
     this.objective();
+    this.barOn = false;
+    this.entrance(() => this.briefing());
+  }
+
+  /** the card and the radio briefing (after Blackout's entrance) */
+  private briefing() {
     const c = this.cfg.hostage;
     this.hud.card(this.cfg.name, `Find and rescue ${c.short}`, 3.5);
     this.after(1.2, () => this.hud.say("COMMAND", `Two days ago the Viper's cell ambushed the convoy of ${c.name}, ${c.title}. They're holding him somewhere inside this old kasbah.`, 7));
@@ -274,6 +362,8 @@ export class Mission {
     h.lockers.restore(s.searched);
     h.respawn(s.at, s.yaw);
     this.objective();
+    this.barOn = false;
+    this.showBar();
     this.hud.card(`CHECKPOINT ${s.n}`, this.cfg.name, 2.5);
   }
 
@@ -289,7 +379,12 @@ export class Mission {
           l.fn();
         }
       }
-    if (this.cinematic) this.runShots(rawDt);
+    if (this.cinematic) {
+      // (the opening plays as the round starts, and the round's start brings the HUD back: keep it off)
+      h.showHud(false);
+      h.showWeapon(false);
+      this.runShots(rawDt);
+    }
     // (he turns to you before he's posed for the frame)
     if (this.tape === "talk") h.hostage.faceTo(this.eye, dt);
     if (this.tape === "flying") this.flyTape(rawDt);
@@ -297,6 +392,17 @@ export class Mission {
     h.lockers.update(dt);
     h.gate.update(dt);
     if (!this.cinematic) this.stage(dt);
+    if (this.barOn) {
+      const b = this.blackout;
+      if (b && b.alive) this.hud.bossBar(Math.max(0, b.health / b.maxHealth));
+      else {
+        this.barOn = false;
+        this.hud.bossMood("DOWN", 0);
+        this.after(1.2, () => this.hud.bossHide());
+        this.hud.say("COMMAND", "Blackout's down. Good shooting — the rest of the cell won't hold for long without him.", 5);
+        h.audio.play("radioChirp", { volume: 0.6 });
+      }
+    }
     if (this.phase === "ending" && !this.cinematic) {
       this.endT -= rawDt;
       if (this.endT <= 0) this.complete();

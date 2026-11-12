@@ -36,3 +36,4 @@ The other commands used for the current assets:
 | `prep-office2.mjs` | Black Ledger: "Cs_office with real light" (Neo_minigan, CC BY 4.0): textures → WebP, geometry kept | `node prep-office2.mjs ~/Downloads/cs_office_with_real_light.glb ../../src/assets/maps/office2.glb 2048` |
 
 `voxel-map.mjs` for Black Ledger: `--u=1.016 --mode=all --skip=glass --wall=glass --edges=void` (`--report-cut=1` lists walkable floor left out of play, to check nothing real is cut off) (the export's node scale is 0.025 per Source inch; its windows are called `glass`, lower case).
+| `prep-blackout.mjs` | The Blackout Operative (own Meshy AI character, Mixamo rig): clips dropped, mesh welded and thinned (103k → 53k triangles, skin kept), textures → WebP | `node prep-blackout.mjs ~/Downloads/Meshy_AI_Blackout_Operative_20261111_animated_mixamo_All_animation.glb ../../src/assets/soldier_blackout.glb 1024 0.5` |

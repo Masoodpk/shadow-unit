@@ -1153,7 +1153,8 @@ export class Game {
 
     // soldier characters download while the level and weapons are built
     // (the Underground's soldiers are its own: the Polish soldier, the soldier girl, the Winter Soldier)
-    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "dust2" || this.settings.stage === "office" || this.settings.stage === "nightshift" || this.settings.stage === "airport" || this.settings.stage === "railway" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
+    // (Sandstorm's story mission brings the Blackout Operative, its boss)
+    const skinsP = this.settings.mp ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : this.settings.stage === "dust2" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat", "blackout"]) : this.settings.stage === "metro" ? SoldierSkins.load(scene, undefined, ["polish", "girl", "winter"]) : this.settings.stage === "office" || this.settings.stage === "nightshift" || this.settings.stage === "airport" || this.settings.stage === "railway" ? SoldierSkins.load(scene, undefined, ["mark", "fsb", "swat"]) : SoldierSkins.load(scene);
     // (online: no missions — no hostage, no tape deck, no Winter Soldier; the map and the guns)
     const hostageP = this.settings.stage === "dust2" && !this.settings.mp ? HostageModel.load(scene) : null;
     const stationP = this.settings.stage === "office" && !this.settings.mp ? StationModel.load(scene) : null;

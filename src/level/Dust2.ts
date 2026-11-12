@@ -463,7 +463,40 @@ function sandstormSpawns(nav: NavGraph, start: Vector3): EnemySpawn[] {
       out.push(route.length > 1 ? { ...base, route } : base);
     });
   }
+  out.push(blackoutSpawn(nav, start, taken));
   return out;
+}
+
+/**
+ * THE BLACKOUT OPERATIVE — the cell's enforcer, holding the market. A boss-class soldier (armour,
+ * temper phases, a sidearm, he hunts you when you break sight) with a health bar of his own, at a
+ * spot in the market the opening cinematic can see; `entrance` is where he walks to in it, a few
+ * metres along the nav graph towards your start.
+ */
+export const BLACKOUT = { name: "BLACKOUT", health: 520 };
+function blackoutSpawn(nav: NavGraph, start: Vector3, taken: Vector3[]): EnemySpawn {
+  const [x0, z0, x1, z1] = ZONES[0].rect;
+  const cand = nav.nodes.filter((n) => n.links.length >= 3 && n.p.x >= x0 && n.p.x <= x1 && n.p.z >= z0 && n.p.z <= z1 && Math.abs(n.p.y) < 1.5);
+  // the open middle of the market, clear of the two posted there, 26–40 m from your start
+  let best = cand[0], bd = -Infinity;
+  for (const n of cand) {
+    const d = Vector3.Distance(n.p, start);
+    if (d < 26 || d > 40) continue;
+    let away = 100;
+    for (const t of taken) away = Math.min(away, Vector3.Distance(n.p, t));
+    const open = n.cover ? 0 : 4;
+    const s = Math.min(away, 8) + open + n.links.length * 0.5;
+    if (s > bd) (bd = s), (best = n);
+  }
+  // his walk-out: along the links towards your start, ~5 m
+  let cur = best;
+  for (let k = 0; k < 6 && Vector3.Distance(cur.p, best.p) < 5; k++) {
+    const next = cur.links.map((l) => nav.nodes[l]).reduce((a, b) => (Vector3.Distance(a.p, start) < Vector3.Distance(b.p, start) ? a : b));
+    if (Vector3.Distance(next.p, start) >= Vector3.Distance(cur.p, start)) break;
+    cur = next;
+  }
+  const yaw = Math.atan2(start.x - best.p.x, start.z - best.p.z);
+  return { pos: best.p.clone(), yaw, group: "market", dormant: false, boss: true, health: BLACKOUT.health, name: BLACKOUT.name, entrance: cur.p.clone() };
 }
 
 /**
