@@ -120,3 +120,64 @@ export const BOSS = {
   /** no single hit does more than this (knife backstab, rocket, plasma) */
   maxHit: 140,
 };
+
+type Widen<T> = { -readonly [K in keyof T]: T[K] extends readonly [number, number] ? [number, number] : T[K] extends number ? number : T[K] };
+/** a soldier's movement & tactics tunables (TACTICS, or TACTICS with an elite's overrides) */
+export type Tactics = Widen<typeof TACTICS>;
+/** a soldier's reflex tunables (REFLEX, or REFLEX with an elite's overrides) */
+export type Reflex = Widen<typeof REFLEX>;
+
+/**
+ * Sandstorm's elite (SREEJITH, the Indian SF soldier: Akash's lieutenant in the hostage yard). Not a boss —
+ * no plates, no sidearm — but quicker at everything: he runs and strafes faster, keeps the rifle on you
+ * at a fast tactical run where the others drop to a jog, jinks more often, turns and gets up to speed
+ * sooner, dives into a combat roll when he's hit in the open, slides into cover at a sprint, carries
+ * two grenades and shrugs off the lighter hits.
+ */
+export const ELITE = {
+  tactics: {
+    minRange: 3,
+    maxRange: 20,
+    strafeSpeed: 2.4,
+    strafeSwitch: [0.55, 1.5],
+    advanceSpeed: 2.8,
+    retreatSpeed: 1.4,
+    backpedalSpeed: 1.7,
+    combatMoveSpeed: 3.0,
+    combatBackSpeed: 1.8,
+    assaultPushRange: 12,
+    huntAfter: 0.4,
+    runSpeed: 4.6,
+    sprintSpeed: 6.2,
+    sprintDistance: 7,
+    faceMoveAbove: 3.4,
+    turnRate: 10,
+    turnSmooth: 14,
+    accel: 15,
+    decel: 17,
+    coverShuffleChance: 0.6,
+    coverShuffleSpeed: 1.6,
+  } satisfies Partial<Tactics>,
+  reflex: {
+    flinchDamage: 32,
+    flinchCooldown: 1.8,
+    sideStepChance: 0.8,
+    dodgeChance: 1,
+    meleeDamage: 40,
+    meleeCooldown: 1.4,
+    grenades: 2,
+    grenadeHiddenFor: 1.5,
+    grenadeChance: 0.6,
+  } satisfies Partial<Reflex>,
+  /** how often he moves to new cover (× the soldiers' reposition time) */
+  reposition: 0.5,
+  /** the dash he prefers from cover to cover (m) */
+  bound: 8,
+  /** a combat roll when hit in the open: chance, and the least time between two */
+  rollChance: 0.65,
+  rollCooldown: 3.2,
+  /** the slide into cover: its length (s) — the slide clip's drop, hip slide and rise */
+  slideTime: 0.85,
+  /** at least this fast (m/s) for a slide (a sprint or a run) */
+  slideSpeed: 3.8,
+};

@@ -22,8 +22,10 @@ import girlUrl from "../assets/soldier_girl.glb?url";
 import winterUrl from "../assets/winter_soldier.glb?url";
 import swatUrl from "../assets/soldier_swat.glb?url";
 import blackoutUrl from "../assets/soldier_blackout.glb?url";
+import sfUrl from "../assets/soldier_sf.glb?url";
+import spyUrl from "../assets/soldier_spy.glb?url";
 import { autoSkin } from "../characters/autoSkin";
-import { retargetSoldierAnims, retargetTable, type RetargetNames } from "./SoldierRetarget";
+import { mergeOwnClips, retargetSoldierAnims, retargetTable, type RetargetNames } from "./SoldierRetarget";
 
 /**
  * Skinned soldier characters for the hostiles, driven by motion-captured rifle
@@ -38,7 +40,7 @@ import { retargetSoldierAnims, retargetTable, type RetargetNames } from "./Soldi
  * soldier girl, and the Winter Soldier as its boss — driven by the same mocap, retargeted onto their
  * own skeletons when the stage loads (SoldierRetarget).
  */
-export type SkinKind = "mark" | "fsb" | "polish" | "girl" | "winter" | "swat" | "blackout";
+export type SkinKind = "mark" | "fsb" | "polish" | "girl" | "winter" | "swat" | "blackout" | "sf" | "spy";
 
 export interface ArmMap {
   up: string;
@@ -73,6 +75,11 @@ export interface RigMap {
    * thumb less). The rigs that come holding their rifle already have their fingers closed.
    */
   curl?: number;
+  /**
+   * never handed the boss's Glock: his rifle only (big gloved hands round a 19 cm pistol showed no gun
+   * at all — a man clutching at nothing at his chest)
+   */
+  rifleOnly?: boolean;
 }
 
 export const RIGS: Record<SkinKind, RigMap> = {
@@ -128,18 +135,53 @@ export const RIGS: Record<SkinKind, RigMap> = {
     hide: ["extras_GUN.001_0", "extras_PISTOL.001_0", "extras_FLASH.001_0"],
   },
   // the Blackout Operative (the user's own Meshy AI model, rigged by Meshy to a Mixamo skeleton; its
-  // clips dropped and the mesh thinned offline: prep-blackout.mjs). His hands have a thumb and a
-  // middle finger only: index and pinky markers are made at load (RETARGET.blackout.prep)
+  // clips dropped, the mesh thinned and the fingers skinned and closed offline: prep-blackout.mjs). In
+  // the game he is AKASH, Sandstorm's boss. His walk, run, back-step and strafes are Mixamo straight onto
+  // his own skeleton (fbx-own-clips.mjs), the rest the FSB's mocap retargeted. His hands have a thumb and
+  // one finger chain only: index and pinky name the middle knuckle, so the hand's "across" is taken from
+  // the bind pose (forward), as the Polish soldier's
   blackout: {
     url: blackoutUrl,
     hips: "mixamorig:Hips",
     spine: ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
     neck: "mixamorig:Neck",
     head: "mixamorig:Head",
-    L: { up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1", index: "mixamorig:LeftHandIndex1", pinky: "mixamorig:LeftHandPinky1" },
-    R: { up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1", index: "mixamorig:RightHandIndex1", pinky: "mixamorig:RightHandPinky1" },
+    L: { up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1", index: "mixamorig:LeftHandMiddle1", pinky: "mixamorig:LeftHandMiddle1" },
+    R: { up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1", index: "mixamorig:RightHandMiddle1", pinky: "mixamorig:RightHandMiddle1" },
     LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
     RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+    rifleOnly: true,
+  },
+  // the Indian SF soldier (the user's own Meshy AI model, Mixamo-rigged to the wrist): Sandstorm's elite,
+  // SREEJITH, Akash's lieutenant in the hostage yard. The finger chain (HandMiddle1–4) is made offline
+  // (prep-sf.mjs); index and pinky name its knuckle, as Akash's. His walk, run, back-step and strafes are
+  // Mixamo straight onto his own skeleton (fbx-own-clips.mjs), the rest the FSB's mocap retargeted.
+  sf: {
+    url: sfUrl,
+    hips: "mixamorig:Hips",
+    spine: ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
+    neck: "mixamorig:Neck",
+    head: "mixamorig:Head",
+    L: { up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1", index: "mixamorig:LeftHandMiddle1", pinky: "mixamorig:LeftHandMiddle1" },
+    R: { up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1", index: "mixamorig:RightHandMiddle1", pinky: "mixamorig:RightHandMiddle1" },
+    LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+    RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+    rifleOnly: true,
+  },
+  // the spy operative (the user's own Meshy AI model, Mixamo-rigged to the wrist): BASIL RAYEES, the
+  // Viper's spy, in the tunnels by the cell's lockers. Prepared as the SF soldier (prep-sf.mjs: the finger
+  // chain made offline), his walk, run, back-step and strafes Mixamo straight onto his own skeleton
+  spy: {
+    url: spyUrl,
+    hips: "mixamorig:Hips",
+    spine: ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
+    neck: "mixamorig:Neck",
+    head: "mixamorig:Head",
+    L: { up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1", index: "mixamorig:LeftHandMiddle1", pinky: "mixamorig:LeftHandMiddle1" },
+    R: { up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1", index: "mixamorig:RightHandMiddle1", pinky: "mixamorig:RightHandMiddle1" },
+    LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+    RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+    rifleOnly: true,
   },
   // the S.W.A.T. operator: a Mixamo rig (his own rifle and loose patches dropped offline: prep-swat.mjs)
   swat: {
@@ -232,23 +274,33 @@ const RETARGET: Partial<Record<SkinKind, { names: RetargetNames; height: number;
       R: { clav: "mixamorig:RightShoulder", up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1" },
       LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
       RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+      // (his boots rest turned 15–17° out, the FSB's stance has them at 28° and 58°)
+      flatFeet: true,
     },
-    prep: (c) => {
-      // (the rig has no index or pinky: two markers either side of each hand's middle, for its grip)
-      const all = c.meshes[0].getDescendants(false) as Node[];
-      for (const S of ["Left", "Right"]) {
-        const hand = findIn(all, `mixamorig:${S}Hand`), mid = findIn(all, `mixamorig:${S}HandMiddle1`);
-        if (!hand || !mid) continue;
-        const along = (mid as TransformNode).position.clone();
-        // across the palm: square to the hand's line and to the palm's own normal
-        const across = Vector3.Cross(along, new Vector3(0, 0, 1)).normalize().scale(along.length() * 0.5);
-        for (const [name, k] of [["Index1", 1], ["Pinky1", -1]] as const) {
-          const n = new TransformNode(`mixamorig:${S}Hand${name}`, hand.getScene());
-          n.parent = hand;
-          n.position.copyFrom(along.scale(0.9).add(across.scale(k)));
-          c.transformNodes.push(n);
-        }
-      }
+  },
+  sf: {
+    // (taller than the soldiers: the user asked for more height)
+    height: 2.04,
+    names: {
+      hips: "mixamorig:Hips", spine: "mixamorig:Spine", chest: "mixamorig:Spine2", neck: "mixamorig:Neck", head: "mixamorig:Head",
+      L: { clav: "mixamorig:LeftShoulder", up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1" },
+      R: { clav: "mixamorig:RightShoulder", up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1" },
+      LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+      RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+      // (his boots rest turned 28° out)
+      flatFeet: true,
+    },
+  },
+  spy: {
+    height: 1.82,
+    names: {
+      hips: "mixamorig:Hips", spine: "mixamorig:Spine", chest: "mixamorig:Spine2", neck: "mixamorig:Neck", head: "mixamorig:Head",
+      L: { clav: "mixamorig:LeftShoulder", up: "mixamorig:LeftArm", fore: "mixamorig:LeftForeArm", hand: "mixamorig:LeftHand", mid: "mixamorig:LeftHandMiddle1" },
+      R: { clav: "mixamorig:RightShoulder", up: "mixamorig:RightArm", fore: "mixamorig:RightForeArm", hand: "mixamorig:RightHand", mid: "mixamorig:RightHandMiddle1" },
+      LL: { thigh: "mixamorig:LeftUpLeg", calf: "mixamorig:LeftLeg", foot: "mixamorig:LeftFoot", toe: "mixamorig:LeftToeBase" },
+      RL: { thigh: "mixamorig:RightUpLeg", calf: "mixamorig:RightLeg", foot: "mixamorig:RightFoot", toe: "mixamorig:RightToeBase" },
+      // (his boots rest turned 27° out)
+      flatFeet: true,
     },
   },
   swat: {
@@ -416,7 +468,15 @@ export class SoldierSkins {
     for (const k of want) {
       const r = RETARGET[k];
       if (!r) continue;
+      // (a rig with clips of its own — Mixamo straight onto its skeleton — keeps those in place of the
+      // retargeted ones of the same name: fbx-own-clips.mjs)
+      const own = s.anims[k];
       s.anims[k] = retargetSoldierAnims(s.anims.fsb, s.restNodes("fsb"), s.restNodes(k), retargetTable(r.names), r.names.hips);
+      if (own) {
+        const nodes = s.restNodes(k);
+        const hipW = (findIn(nodes, r.names.hips) as TransformNode).computeWorldMatrix(true).getTranslation().y;
+        s.anims[k] = mergeOwnClips(s.anims[k], own, nodes, hipW);
+      }
     }
     return s;
   }
@@ -588,7 +648,10 @@ export class SoldierSkin {
   private calF = new Vector3(0, 0, 1);
   private calU = new Vector3(0, 1, 0);
 
+  /** never given a sidearm (RigMap.rifleOnly) */
+  readonly rifleOnly: boolean;
   constructor(private owner: SoldierSkins, c: AssetContainer, map: RigMap, private p: SoldierParts, idx: number, anim: AnimSet) {
+    this.rifleOnly = !!map.rifleOnly;
     const e = c.instantiateModelsToScene((n) => `${n}#${idx}`, false, { doNotInstantiate: true });
     const root = (this.root = e.rootNodes[0] as TransformNode);
     root.setEnabled(true);

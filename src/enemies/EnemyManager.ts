@@ -1,6 +1,6 @@
 import { Scene } from "@babylonjs/core/scene";
 import { EnemyRagdoll } from "./EnemyRagdoll";
-import type { SoldierSkins } from "./SoldierSkin";
+import type { SkinKind, SoldierSkins } from "./SoldierSkin";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { ENEMY } from "../config/game";
 import { AudioEngine } from "../audio/AudioEngine";
@@ -109,10 +109,14 @@ export class EnemyManager {
     // Winter Soldier its boss — dresses them in those; otherwise the FSB operator and Mark, alternating)
     // (every character the stage loaded, but its boss, takes a turn: Sandstorm and Frostline mix the
     // operators with the S.W.A.T. operator)
-    // (Sandstorm: the Blackout Operative is its boss — the user's own Meshy character)
-    const own = skins.kinds.filter((k) => k !== "winter" && k !== "blackout");
+    // (Sandstorm: Akash — the Blackout Operative model — is its boss; its named soldiers wear their own
+    // models (spawn.skin: Sreejith the Indian SF soldier, Basil Rayees the spy) — the user's own Meshy
+    // characters, worn by nobody else)
+    const named = new Set(this.enemies.map((e) => e.spawn.skin).filter((k): k is string => !!k));
+    const own = skins.kinds.filter((k) => k !== "winter" && k !== "blackout" && !named.has(k));
     const boss = skins.kinds.includes("winter") ? "winter" : skins.kinds.includes("blackout") ? "blackout" : "fsb";
-    this.enemies.forEach((e, i) => e.attachSkin(skins.create(e.boss ? boss : own.length ? own[i % own.length] : i % 2 === 0 ? "fsb" : "mark", e.parts, i)));
+    const mine = (e: Enemy) => (e.spawn.skin && (skins.kinds as string[]).includes(e.spawn.skin) ? (e.spawn.skin as SkinKind) : null);
+    this.enemies.forEach((e, i) => e.attachSkin(skins.create(e.boss ? boss : mine(e) ?? (own.length ? own[i % own.length] : i % 2 === 0 ? "fsb" : "mark"), e.parts, i)));
   }
 
   /**

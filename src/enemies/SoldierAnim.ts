@@ -43,6 +43,8 @@ export interface AnimSet {
   bones: string[];
   hips: string;
   clips: Record<ClipKey, Clip>;
+  /** a rig's own clips (fbx-own-clips.mjs): its hip height in its file, to rescale their speeds */
+  hipH?: number;
 }
 
 interface RawClip {
@@ -63,7 +65,7 @@ function b64(s: string) {
 }
 
 export async function loadSoldierAnims(): Promise<Record<SkinKind, AnimSet>> {
-  const raw = (await (await fetch(animsUrl)).json()) as Record<SkinKind, { bones: string[]; hips: string; clips: Record<ClipKey, RawClip> }>;
+  const raw = (await (await fetch(animsUrl)).json()) as Record<SkinKind, { bones: string[]; hips: string; hipH?: number; clips: Record<ClipKey, RawClip> }>;
   const out = {} as Record<SkinKind, AnimSet>;
   for (const kind of Object.keys(raw) as SkinKind[]) {
     const r = raw[kind];
@@ -72,7 +74,7 @@ export async function loadSoldierAnims(): Promise<Record<SkinKind, AnimSet>> {
       const c = r.clips[k];
       clips[k] = { n: c.n, fps: c.fps, dur: (c.n - 1) / c.fps, speed: c.speed, sync: c.sync ?? 0, rot: new Int16Array(b64(c.rot)), hips: new Float32Array(b64(c.hips)), root: c.root ? new Float32Array(b64(c.root)) : undefined };
     }
-    out[kind] = { bones: r.bones, hips: r.hips, clips };
+    out[kind] = { bones: r.bones, hips: r.hips, clips, hipH: r.hipH };
   }
   return out;
 }

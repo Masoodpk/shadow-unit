@@ -111,6 +111,8 @@ const REACH = 1.8;
 const ORDER: Phase[] = ["market", "tunnels", "west", "rescue", "ending"];
 /** which soldiers wake as you get to each part of the mission */
 const WAKE: Partial<Record<Phase, string[]>> = {
+  // (Basil Rayees, the spy, by the lockers)
+  tunnels: ["spy"],
   west: ["depot", "hq", "mid", "west", "long"],
   rescue: ["yard", "lane"],
 };
@@ -143,37 +145,102 @@ export class Mission {
   }
 
   constructor(private host: MissionHost, private cfg: MissionConfig) {
-    // the Blackout Operative's temper, as his health goes: the bar's tint and a line from him
-    host.enemies.onBossPhase = (_e, phase) => {
-      this.hud.bossMood(phase === 1 ? "PRESSED" : "ENRAGED", phase);
-      this.hud.say("BLACKOUT", phase === 1 ? "Not bad. Now I stop playing." : "Enough! You die in this dust.", 3);
+    // Akash's temper, as his health goes: the bar's tint (when it's his bar) and a line from him
+    host.enemies.onBossPhase = (e, phase) => {
+      if (this.barFor === e) this.hud.bossMood(phase === 1 ? "PRESSED" : "ENRAGED", phase);
+      this.hud.say(e.spawn.name ?? "BOSS", phase === 1 ? "Not bad. Now I stop playing." : "Enough! You die in this dust.", 3);
     };
   }
 
-  // ------------------------------------------------------------------ the Blackout Operative
-  /** his health bar is up */
-  private barOn = false;
-  /** the market's named soldier (null on a stage build without him) */
-  private get blackout() {
-    return this.host.enemies.enemies.find((e) => e.spawn.name) ?? null;
+  // ------------------------------------------------------------------ the named soldiers
+  // Akash (the Blackout Operative model): the market's boss. SREEJITH (the Indian SF soldier): Akash's
+  // lieutenant, the elite in the hostage yard. One health bar, whichever of them the mission's at.
+  /** whose health bar is up (null: none) */
+  private barFor: Enemy | null = null;
+  /** the elite's mood level on the bar (it changes as he's hurt) */
+  private eliteMood = 0;
+  /** Akash (null on a stage build without him) */
+  private get akash() {
+    return this.host.enemies.enemies.find((e) => e.boss && e.spawn.name) ?? null;
   }
-  private showBar() {
-    const b = this.blackout;
-    if (!b || !b.alive) return;
-    this.barOn = true;
-    this.hud.bossShow(`THE ${b.spawn.name}`);
-    this.hud.bossMood(b.phase === 0 ? "CALM" : b.phase === 1 ? "PRESSED" : "ENRAGED", b.phase);
+  /** SREEJITH (null on a stage build without him) */
+  private get sreejith() {
+    return this.host.enemies.enemies.find((e) => e.spawn.elite && e.spawn.name) ?? null;
   }
+  /** BASIL RAYEES (null on a stage build without him) */
+  private get basil() {
+    return this.host.enemies.enemies.find((e) => e.spawn.elite && e.spawn.group === "spy") ?? null;
+  }
+  /** what an elite says as he's hurt (wounded, desperate) */
+  private taunts(e: Enemy): [string, string] {
+    return e.spawn.group === "spy" ? ["Lucky. That won't happen twice.", "Fine — then we both stay down here."] : ["Good. Finally someone who can shoot.", "Not here. Not like this!"];
+  }
+  /** the bar's tint: Akash's temper (his boss phases), an elite's state by his health */
+  private mood(e: Enemy): [string, number] {
+    if (e.spawn.elite) {
+      const f = e.health / e.maxHealth;
+      return f > 0.5 ? ["LETHAL", 0] : f > 0.2 ? ["WOUNDED", 1] : ["DESPERATE", 2];
+    }
+    return [e.phase === 0 ? "CALM" : e.phase === 1 ? "PRESSED" : "ENRAGED", e.phase];
+  }
+  /** whose bar the mission calls for: Sreejith once the yard's in play, Basil from the tunnels on, else Akash */
+  private barTarget() {
+    const at = ORDER.indexOf(this.phase);
+    const v = this.sreejith;
+    if (v && v.alive && this.phase === "rescue") return v;
+    const b = this.basil;
+    if (b && b.alive && at >= ORDER.indexOf("tunnels")) return b;
+    const a = this.akash;
+    return a && a.alive ? a : null;
+  }
+  private showBar(e: Enemy | null = this.barTarget()) {
+    if (!e || !e.alive) {
+      if (this.barFor) this.hud.bossHide();
+      this.barFor = null;
+      return;
+    }
+    this.barFor = e;
+    this.hud.bossShow(e.spawn.name!);
+    const [m, l] = this.mood(e);
+    this.hud.bossMood(m, l);
+    this.eliteMood = l;
+  }
+  /** the bar, every frame: his health, the elite's state, and the word when he's down */
+  private barUpdate() {
+    const b = this.barFor;
+    if (!b) return;
+    if (b.alive) {
+      this.hud.bossBar(Math.max(0, b.health / b.maxHealth));
+      if (b.spawn.elite) {
+        const [m, l] = this.mood(b);
+        if (l !== this.eliteMood) {
+          this.eliteMood = l;
+          this.hud.bossMood(m, l);
+          const [wounded, desperate] = this.taunts(b);
+          if (l === 1) this.hud.say(b.spawn.name!, wounded, 3);
+          if (l === 2) this.hud.say(b.spawn.name!, desperate, 3);
+        }
+      }
+      return;
+    }
+    this.barFor = null;
+    this.hud.bossMood("DOWN", 0);
+    this.after(1.2, () => this.hud.bossHide());
+    if (b.spawn.group === "spy") this.hud.say("COMMAND", "Basil Rayees is down. That's their eyes and ears gone — find those lockers.", 5);
+    else if (b.spawn.elite) this.hud.say("COMMAND", `${b.spawn.name} is down. The yard's yours — get to the Ambassador.`, 5);
+    else this.hud.say("COMMAND", `${b.spawn.name} is down. Good shooting — the rest of the cell won't hold for long without him.`, 5);
+    this.host.audio.play("radioChirp", { volume: 0.6 });
+  }
+
   /**
-   * The opening: before the briefing, a look into the market — he walks out of the cell's stalls
-   * towards the way you'll come, a close-up, a line from him — then he's back to his own judgement
-   * (he doesn't know where you are yet) and his bar comes up.
+   * A named soldier's entrance: he walks out towards the way you'll come (`walkSpeed`), the camera
+   * easing back in front of him, then a close-up and a line from him — then he's back to his own
+   * judgement (he doesn't know where you are yet), and his bar and his card come up.
    */
-  private entrance(then: () => void) {
+  private introduce(b: Enemy, o: { walkSpeed: number; walk: [string, string]; close: [string, string]; card: string }, then: () => void) {
     const h = this.host;
-    const b = this.blackout;
-    if (!b || !b.alive) return then();
-    const from = b.spawn.pos, to = b.spawn.entrance ?? from;
+    const from = b.position.clone(), to = b.spawn.entrance ?? from;
+    from.y = to.y;
     const head = () => b.position.add(new Vector3(0, 0.65, 0));
     const fwd = to.subtract(from);
     fwd.y = 0;
@@ -196,33 +263,76 @@ export class Mission {
     this.play(
       [
         {
-          // he walks out towards you, rifle down, the camera easing back in front of him
           dur: 4.2,
           from: w1,
           to: Vector3.Lerp(w1, to.add(new Vector3(0, 1.4, 0)), 0.12),
           look: () => b.position.add(new Vector3(0, 0.3, 0)),
           fov: 0.85,
-          enter: () => b.scriptMove(to, 1.5),
-          sub: ["COMMAND", "Eyes on the market. That's Blackout — the Viper's enforcer. Plated up, and he doesn't miss."],
+          enter: () => b.scriptMove(to, o.walkSpeed),
+          sub: o.walk,
         },
         {
-          // close on his face
           dur: 3,
           from: c1,
           to: Vector3.Lerp(c1, head(), 0.18),
           look: head,
           fov: 0.6,
           enter: () => b.faceTo(Math.atan2(c1.x - to.x, c1.z - to.z)),
-          sub: ["BLACKOUT", "Another hero for the kasbah. We bury them in the sand."],
+          sub: o.close,
         },
       ],
       () => {
         b.release();
-        this.showBar();
-        this.hud.card(`THE ${b.spawn.name}`, "The Viper's enforcer · armoured", 3);
+        this.showBar(b);
+        this.hud.card(b.spawn.name!, o.card, 3);
         h.audio.play("radioChirp", { volume: 0.6 });
         then();
       },
+    );
+  }
+  /** the opening: Akash in the market, before the briefing */
+  private entrance(then: () => void) {
+    const b = this.akash;
+    if (!b || !b.alive) return then();
+    this.introduce(
+      b,
+      {
+        walkSpeed: 1.5,
+        walk: ["COMMAND", "Eyes on the market. That's Akash — the Viper's enforcer. Plated up, and he doesn't miss."],
+        close: [b.spawn.name!, "Another hero for the kasbah. We bury them in the sand."],
+        card: "The Viper's enforcer · armoured",
+      },
+      then,
+    );
+  }
+  /** down in the tunnels: Basil Rayees by the lockers, coming out to meet you */
+  private basilEntrance(then: () => void) {
+    const b = this.basil;
+    if (!b || !b.alive) return then();
+    this.introduce(
+      b,
+      {
+        walkSpeed: 1.8,
+        walk: ["COMMAND", "Contact by the lockers. That's Basil Rayees — the Viper's spy. He's been reading our traffic; he knows you're coming."],
+        close: [b.spawn.name!, "I've read your file. You're slower than it says."],
+        card: "The Viper's spy · keeper of the lockers",
+      },
+      then,
+    );
+  }
+  /** the west gate open: SREEJITH in the yard, coming out to meet you */
+  private sreejithEntrance(then: () => void) {
+    const b = this.sreejith;
+    if (!b || !b.alive) return then();
+    this.introduce(
+      b,
+      {
+        walkSpeed: 2.4,
+        walk: ["COMMAND", "Movement in the yard. That's Sreejith — Akash's lieutenant, ex-special forces. He's fast. Don't stand still."],
+        close: [b.spawn.name!, "You opened the gate. Now come and take him from me."],
+        card: "Akash's lieutenant · ex-special forces",
+      },
+      then,
     );
   }
 
@@ -312,11 +422,11 @@ export class Mission {
     // the dossier's in a different locker each time (never the first one along)
     h.lockers.reset(1 + Math.floor(Math.random() * (h.lockers.list.length - 1)));
     this.objective();
-    this.barOn = false;
+    this.showBar(null);
     this.entrance(() => this.briefing());
   }
 
-  /** the card and the radio briefing (after Blackout's entrance) */
+  /** the card and the radio briefing (after Akash's entrance) */
   private briefing() {
     const c = this.cfg.hostage;
     this.hud.card(this.cfg.name, `Find and rescue ${c.short}`, 3.5);
@@ -362,7 +472,7 @@ export class Mission {
     h.lockers.restore(s.searched);
     h.respawn(s.at, s.yaw);
     this.objective();
-    this.barOn = false;
+    this.showBar(null);
     this.showBar();
     this.hud.card(`CHECKPOINT ${s.n}`, this.cfg.name, 2.5);
   }
@@ -392,17 +502,7 @@ export class Mission {
     h.lockers.update(dt);
     h.gate.update(dt);
     if (!this.cinematic) this.stage(dt);
-    if (this.barOn) {
-      const b = this.blackout;
-      if (b && b.alive) this.hud.bossBar(Math.max(0, b.health / b.maxHealth));
-      else {
-        this.barOn = false;
-        this.hud.bossMood("DOWN", 0);
-        this.after(1.2, () => this.hud.bossHide());
-        this.hud.say("COMMAND", "Blackout's down. Good shooting — the rest of the cell won't hold for long without him.", 5);
-        h.audio.play("radioChirp", { volume: 0.6 });
-      }
-    }
+    this.barUpdate();
     if (this.phase === "ending" && !this.cinematic) {
       this.endT -= rawDt;
       if (this.endT <= 0) this.complete();
@@ -452,7 +552,7 @@ export class Mission {
   onKilled(e: Enemy) {
     if (this.phase === "market" && e.spawn.group === "market" && this.host.enemies.groupAlive("market") === 0) {
       this.go("tunnels");
-      this.hud.say("COMMAND", "Market's clear. Their runners use the old tunnels under the kasbah — get down there and find their lockers.");
+      this.basilEntrance(() => this.hud.say("COMMAND", "Market's clear. Their runners use the old tunnels under the kasbah — get down there and find their lockers."));
       return;
     }
     if (this.phase === "rescue" && e.spawn.group === "yard" && this.host.enemies.groupAlive("yard") === 0)
@@ -471,7 +571,7 @@ export class Mission {
         // (or slipped past them into the tunnels)
         if (near(p.tunnels, 9)) {
           this.go("tunnels");
-          this.hud.say("COMMAND", "You're in their tunnels. Find those lockers — and watch the corners down there.");
+          this.basilEntrance(() => this.hud.say("COMMAND", "You're in their tunnels. Find those lockers — and watch the corners down there."));
         }
         break;
       case "tunnels":
@@ -561,7 +661,8 @@ export class Mission {
     this.go("rescue");
     // the west site and the long road done: checkpoint 3 (at the gate)
     this.checkpoint(me, h.player.yaw);
-    this.hud.say("COMMAND", "Gate's open. Move — they'll have heard that.");
+    // SREEJITH comes out into the yard (his bar takes over from Akash's, if Akash is still about)
+    this.sreejithEntrance(() => this.hud.say("COMMAND", "Gate's open. Move — they'll have heard that."));
   }
 
   // ------------------------------------------------------------------ the cuffs

@@ -22,6 +22,10 @@ export interface EnemySpawn {
   name?: string;
   /** where a named soldier walks to in his entrance cinematic */
   entrance?: Vector3;
+  /** an elite (Sandstorm's SREEJITH): ELITE's quicker tactics and reflexes, the combat roll, the slide */
+  elite?: boolean;
+  /** the soldier model he wears (a SkinKind: a named soldier's own — Sreejith "sf", Basil Rayees "spy") */
+  skin?: string;
 }
 
 export interface LevelData {

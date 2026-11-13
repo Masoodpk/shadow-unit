@@ -464,16 +464,95 @@ function sandstormSpawns(nav: NavGraph, start: Vector3): EnemySpawn[] {
     });
   }
   out.push(blackoutSpawn(nav, start, taken));
+  const v = sreejithSpawn(nav, taken);
+  if (v) out.push(v);
+  const b = basilSpawn(nav, taken);
+  if (b) out.push(b);
   return out;
 }
 
 /**
- * THE BLACKOUT OPERATIVE — the cell's enforcer, holding the market. A boss-class soldier (armour,
+ * BASIL RAYEES (the spy operative model) — the Viper's spy, keeping the cell's lockers (the intel) in the
+ * tunnels. His own group ("spy"), asleep until you get down there (Mission's WAKE), then out to meet you
+ * (Mission.basilEntrance). An elite like Sreejith (ELITE's tactics and reflexes, the roll, the slide),
+ * his rifle only. He stands in the open by the lockers, 11–18 m in from where the tunnels start (where
+ * you are when he comes out), facing the way in;
+ * `entrance` a few metres along the nav graph towards it.
+ */
+export const BASIL = { name: "BASIL RAYEES", health: 380 };
+function basilSpawn(nav: NavGraph, taken: Vector3[]): EnemySpawn | null {
+  const zone = ZONES.find((z) => z.group === "tunnels")!;
+  const [x0, z0, x1, z1] = zone.rect;
+  const L = DUST.lockers.at;
+  const way = DUST.tunnels;
+  const cand = nav.nodes.filter((n) => n.links.length >= 3 && n.p.x >= x0 && n.p.x <= x1 && n.p.z >= z0 && n.p.z <= z1 && Math.abs(n.p.y - L.y) < 1.5);
+  let best: (typeof cand)[number] | null = null, bd = -Infinity;
+  for (const n of cand) {
+    // (deeper in than where the tunnels start — you're there when he comes out — and by the lockers)
+    const d = Math.hypot(n.p.x - L.x, n.p.z - L.z);
+    const fromWay = Math.hypot(n.p.x - way.x, n.p.z - way.z);
+    if (d > 14 || fromWay < 11 || fromWay > 18) continue;
+    let away = 100;
+    for (const t of taken) away = Math.min(away, Vector3.Distance(n.p, t));
+    if (away < 3) continue;
+    const s = Math.min(away, 6) + (n.cover ? 0 : 3) + n.links.length * 0.5 - d * 0.2;
+    if (s > bd) (bd = s), (best = n);
+  }
+  if (!best) return null;
+  let cur = best;
+  for (let k = 0; k < 7 && Vector3.Distance(cur.p, best.p) < 5; k++) {
+    const next = cur.links.map((l) => nav.nodes[l]).reduce((a, b) => (Vector3.Distance(a.p, way) < Vector3.Distance(b.p, way) ? a : b));
+    if (Vector3.Distance(next.p, way) >= Vector3.Distance(cur.p, way)) break;
+    cur = next;
+  }
+  const yaw = Math.atan2(cur.p.x - best.p.x, cur.p.z - best.p.z) || Math.atan2(way.x - best.p.x, way.z - best.p.z);
+  taken.push(best.p);
+  return { pos: best.p.clone(), yaw, group: "spy", dormant: true, elite: true, skin: "spy", health: BASIL.health, name: BASIL.name, entrance: cur.p.clone() };
+}
+
+/**
+ * SREEJITH (the Indian SF soldier model) — Akash's lieutenant, the elite in the hostage yard: asleep with
+ * the yard until the west gate opens, then out to meet you (Mission.sreejithEntrance). Not a boss — no
+ * plates, no sidearm — but ELITE's quicker tactics and reflexes, the combat roll and the slide into
+ * cover. He stands in the open part of the yard 6–13 m from the hostage, clear of the two over the
+ * chair, facing the way in; `entrance` is a few metres along the nav graph towards the gate.
+ */
+export const SREEJITH = { name: "SREEJITH", health: 420 };
+function sreejithSpawn(nav: NavGraph, taken: Vector3[]): EnemySpawn | null {
+  const yard = ZONES.find((z) => z.group === "yard")!;
+  const [x0, z0, x1, z1] = yard.rect;
+  const hs = DUST.hostage;
+  const gate = new Vector3((DUST.gate.x0 + DUST.gate.x1) / 2, DUST.gate.floor, DUST.gate.z);
+  const cand = nav.nodes.filter((n) => n.links.length >= 3 && n.p.x >= x0 && n.p.x <= x1 && n.p.z >= z0 && n.p.z <= z1 && Math.abs(n.p.y - hs.y) < 1.5);
+  let best: (typeof cand)[number] | null = null, bd = -Infinity;
+  for (const n of cand) {
+    const d = Math.hypot(n.p.x - hs.x, n.p.z - hs.z);
+    if (d < 6 || d > 13) continue;
+    let away = 100;
+    for (const t of taken) away = Math.min(away, Vector3.Distance(n.p, t));
+    if (away < 3) continue;
+    const s = Math.min(away, 6) + (n.cover ? 0 : 3) + n.links.length * 0.5 - Math.abs(d - 9) * 0.3;
+    if (s > bd) (bd = s), (best = n);
+  }
+  if (!best) return null;
+  // his walk-out: along the links towards the gate, ~5 m
+  let cur = best;
+  for (let k = 0; k < 7 && Vector3.Distance(cur.p, best.p) < 5; k++) {
+    const next = cur.links.map((l) => nav.nodes[l]).reduce((a, b) => (Vector3.Distance(a.p, gate) < Vector3.Distance(b.p, gate) ? a : b));
+    if (Vector3.Distance(next.p, gate) >= Vector3.Distance(cur.p, gate)) break;
+    cur = next;
+  }
+  const yaw = Math.atan2(cur.p.x - best.p.x, cur.p.z - best.p.z) || Math.atan2(gate.x - best.p.x, gate.z - best.p.z);
+  return { pos: best.p.clone(), yaw, group: "yard", dormant: true, elite: true, skin: "sf", health: SREEJITH.health, name: SREEJITH.name, entrance: cur.p.clone() };
+}
+
+/**
+ * AKASH (the Blackout Operative model) — the cell's enforcer, holding the market. A boss-class soldier (armour,
  * temper phases, a sidearm, he hunts you when you break sight) with a health bar of his own, at a
  * spot in the market the opening cinematic can see; `entrance` is where he walks to in it, a few
  * metres along the nav graph towards your start.
  */
-export const BLACKOUT = { name: "BLACKOUT", health: 520 };
+export const BLACKOUT = { name: "AKASH", health: 520 };
 function blackoutSpawn(nav: NavGraph, start: Vector3, taken: Vector3[]): EnemySpawn {
   const [x0, z0, x1, z1] = ZONES[0].rect;
   const cand = nav.nodes.filter((n) => n.links.length >= 3 && n.p.x >= x0 && n.p.x <= x1 && n.p.z >= z0 && n.p.z <= z1 && Math.abs(n.p.y) < 1.5);

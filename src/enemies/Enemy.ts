@@ -17,7 +17,7 @@ import type { PhysicsService } from "../physics/PhysicsService";
 import { SoldierParts, buildSoldier, setPartsVisible } from "./EnemyModel";
 import { RELOAD_EVENTS, RELOAD_TIME, type AnimInput, type SoldierSkin } from "./SoldierSkin";
 import type { ActionKey } from "./EnemyAnimationController";
-import { BOSS, RAGDOLL, REFLEX, TACTICS } from "./EnemyConfig";
+import { BOSS, ELITE, RAGDOLL, REFLEX, TACTICS, type Reflex, type Tactics } from "./EnemyConfig";
 import type { RagdollImpulse } from "./EnemyRagdoll";
 import { difficulty } from "../config/difficulty";
 import { WEAPONS, type WeaponId } from "../config/weapons";
@@ -207,7 +207,21 @@ export class Enemy {
   // ---- reflexes
   private flinchCd = 0;
   private meleeCd = 0;
-  private nades = REFLEX.grenades;
+  private nades: number = REFLEX.grenades;
+  /**
+   * his movement/tactics and reflex tunables: the shared TACTICS / REFLEX, or, for an elite
+   * (spawn.elite: Sandstorm's SREEJITH), those with ELITE's overrides
+   */
+  readonly T: Tactics;
+  readonly R: Reflex;
+  /** an elite: a combat roll when hit in the open (cooldown), and the slide into cover */
+  private rollCd = 0;
+  private slideT = -1;
+  private slideV = 0;
+  private slideX = 0;
+  private slideZ = 0;
+  /** the move under way is to cover (a sprint there may end in a slide) */
+  private toCover = false;
   private throwTarget = new Vector3();
   private nadeProp: InstancedMesh | null = null;
   private dodged = new WeakSet<object>();
@@ -281,6 +295,9 @@ export class Enemy {
     readonly spawn: EnemySpawn,
     readonly index: number,
   ) {
+    this.T = spawn.elite ? { ...TACTICS, ...ELITE.tactics } : TACTICS;
+    this.R = spawn.elite ? { ...REFLEX, ...ELITE.reflex } : REFLEX;
+    this.nades = this.R.grenades;
     this.boss = !!spawn.boss;
     this.parts = buildSoldier(ctx.scene, mats, this, index);
     this.collider = MeshBuilder.CreateBox(`enemyCol_${index}`, { width: 0.6, height: 1.8, depth: 0.6 }, ctx.scene);
@@ -440,7 +457,10 @@ export class Enemy {
     this.tacX = this.tacZ = this.tacSpeed = 0;
     this.tacCrouch = false;
     this.flinchCd = this.meleeCd = 0;
-    this.nades = REFLEX.grenades;
+    this.nades = this.R.grenades;
+    this.rollCd = 0;
+    this.slideT = -1;
+    this.toCover = false;
     this.dodged = new WeakSet();
     this.killInfo = null;
     this.ragdollPath = this.ragdollStarted = this.ragdollLive = false;
@@ -585,8 +605,8 @@ export class Enemy {
       this.meleeCd = Math.max(this.meleeCd, 0.8);
     }
     // important hits flinch (not every graze — they'd never get a shot off)
-    if (this.skin && this.flinchCd <= 0 && (damage >= REFLEX.flinchDamage || zone === "head" || info.kind === "melee") && !this.busy) {
-      this.flinchCd = REFLEX.flinchCooldown;
+    if (this.skin && this.flinchCd <= 0 && (damage >= this.R.flinchDamage || zone === "head" || info.kind === "melee") && !this.busy) {
+      this.flinchCd = this.R.flinchCooldown;
       if (Math.random() < 0.5) this.ctx.bark?.(this, "hit");
       this.skin.ctrl.flinch(damage / 40 + (info.kind === "melee" ? 0.5 : 0));
       if (damage >= 30 || info.kind === "melee") {
@@ -594,11 +614,13 @@ export class Enemy {
         this.endBurst();
       }
       // caught in the open standing still: step out of the line of fire
-      if (info.kind === "bullet" && !this.atCover && this.curSpeed < 0.4 && this.reloadT < 0 && Math.random() < REFLEX.sideStepChance) {
+      if (info.kind === "bullet" && !this.atCover && this.curSpeed < (this.spawn.elite ? 2.5 : 0.4) && this.reloadT < 0 && Math.random() < this.R.sideStepChance) {
         const key: ActionKey = Math.random() < 0.5 ? "stepL" : "stepR";
         if (this.sideClear(key === "stepR" ? 1 : -1, 1.0)) this.skin.ctrl.play(key);
       }
     }
+    // an elite hit in the open (any hit, not just a flinch): a combat roll across the line of fire
+    if (this.spawn.elite && info.kind === "bullet" && !this.atCover && this.slideT < 0 && this.rollCd <= 0 && this.reloadT < 0 && Math.random() < ELITE.rollChance) this.combatRoll(dir);
     return false;
   }
 
@@ -745,7 +767,7 @@ export class Enemy {
   private eye() {
     const c = this.collider.position;
     // leaning out: the head moves sideways past the cover edge (body yaw right = (cos, -sin))
-    const l = this.leanT * TACTICS.leanReach;
+    const l = this.leanT * this.T.leanReach;
     return this.eyeV.set(c.x + Math.cos(this.yaw) * l, c.y - ENEMY.halfHeight + lerp(ENEMY.eyeHeight, ENEMY.crouchEyeHeight, this.crouchT) - Math.abs(l) * 0.27, c.z - Math.sin(this.yaw) * l);
   }
 
@@ -762,7 +784,7 @@ export class Enemy {
     const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
     const first = Math.random() < 0.5 ? -1 : 1;
     for (const s of [first, -first]) {
-      const r = TACTICS.leanReach * s;
+      const r = this.T.leanReach * s;
       // room for the head beside the body, then a clear shot from there
       this.tmp2.set(c.x + rx * r, y, c.z + rz * r);
       this.tmp.set(c.x, y, c.z);
@@ -856,6 +878,7 @@ export class Enemy {
     if (!this.alive) return;
     this.stateTime += dt;
     this.flinchCd -= dt;
+    this.rollCd -= dt;
     this.meleeCd -= dt;
     if (this.blindT > 0) {
       // blinded: stop, stumble, cover the eyes; nothing else happens until vision returns
@@ -916,7 +939,7 @@ export class Enemy {
           this.repath = false;
           if (this.investigate && d > ENEMY.approachStop) {
             // gunfire: run in (sprint from far away) to a point short of it…
-            this.goTo(this.approachPoint(), d > TACTICS.sprintDistance * 2 ? TACTICS.sprintSpeed : TACTICS.runSpeed);
+            this.goTo(this.approachPoint(), d > this.T.sprintDistance * 2 ? this.T.sprintSpeed : this.T.runSpeed);
           } else {
             // …then the last stretch at a careful walk, weapon up — each to his own corner of it
             this.goTo(this.spreadNear(this.lastKnown, 5), ENEMY.walkSpeed * (this.investigate ? 1.25 : 1.15));
@@ -959,19 +982,19 @@ export class Enemy {
       this.setState("SEARCH");
       this.ctx.bark?.(this, "search");
       this.awareness = 0.9;
-      if (!this.spawn.anchored) this.goTo(this.lastKnown, TACTICS.runSpeed * 0.7);
+      if (!this.spawn.anchored) this.goTo(this.lastKnown, this.T.runSpeed * 0.7);
       return;
     }
     this.faceTowards(this.canSee ? pl.feet : this.lastKnown);
     const dist = this.distTo(pl.feet);
     // out of sight a moment: the rifleman and the boss go and get you (still in the fight, rifle up)
-    if (!this.canSee && (this.boss || this.role === "assault") && !this.spawn.anchored && !this.atCover && now - this.lastSeen > TACTICS.huntAfter && !this.isMoving()) {
-      this.goTo(this.spreadNear(this.lastKnown, 2.5), TACTICS.runSpeed * 0.8);
+    if (!this.canSee && (this.boss || this.role === "assault") && !this.spawn.anchored && !this.atCover && now - this.lastSeen > this.T.huntAfter && !this.isMoving()) {
+      this.goTo(this.spreadNear(this.lastKnown, 2.5), this.T.runSpeed * 0.8);
       return;
     }
 
     // too close: rifle-butt
-    if (this.canSee && dist < REFLEX.meleeRange && this.meleeCd <= 0 && this.reloadT < 0 && this.skin) {
+    if (this.canSee && dist < this.R.meleeRange && this.meleeCd <= 0 && this.reloadT < 0 && this.skin) {
       this.startMelee();
       return;
     }
@@ -979,18 +1002,22 @@ export class Enemy {
 
     this.repositionTimer -= dt;
     const anchored = this.spawn.anchored;
-    if (!anchored && (this.repositionTimer <= 0 || (dist < TACTICS.panicRange && !this.isMoving() && !this.atCover))) {
-      this.repositionTimer = rand(ENEMY.repositionMin, ENEMY.repositionMax) * (1 - 0.5 * this.rage);
+    if (!anchored && (this.repositionTimer <= 0 || (dist < this.T.panicRange && !this.isMoving() && !this.atCover))) {
+      this.repositionTimer = rand(ENEMY.repositionMin, ENEMY.repositionMax) * (1 - 0.5 * this.rage) * (this.spawn.elite ? ELITE.reposition : 1);
       const cover = this.findCover(pl);
       if (cover && Math.random() < 0.7) {
         const d = this.distTo(cover);
-        this.goTo(cover, d > TACTICS.sprintDistance ? TACTICS.sprintSpeed : TACTICS.runSpeed);
+        this.goTo(cover, d > this.T.sprintDistance ? this.T.sprintSpeed : this.T.runSpeed);
+        this.toCover = true;
         if (this.role === "flankL" || this.role === "flankR") this.ctx.bark?.(this, this.role);
         this.atCover = false;
         this.tacSpeed = 0;
       }
     }
-    if (!this.isMoving() && this.path.length) this.atCover = true;
+    if (!this.isMoving() && this.path.length) {
+      this.atCover = true;
+      this.toCover = false;
+    }
 
     if (this.atCover || anchored) {
       // peek cycle: crouch behind cover, rise to shoot, now and then shuffle along it
@@ -1005,9 +1032,9 @@ export class Enemy {
           this.burstCooldown = Math.min(this.burstCooldown, 0.25);
           if (this.role === "support" && Math.random() < 0.2) this.ctx.bark?.(this, "suppress");
         }
-        else if (!anchored && Math.random() < TACTICS.coverShuffleChance) {
+        else if (!anchored && Math.random() < this.T.coverShuffleChance) {
           const s = Math.random() < 0.5 ? -1 : 1;
-          if (this.sideClear(s, 1.4)) this.setTactic(s, 0, TACTICS.coverShuffleSpeed, true);
+          if (this.sideClear(s, 1.4)) this.setTactic(s, 0, this.T.coverShuffleSpeed, true);
         }
       }
       if (this.wantCrouch && !this.coverBlocks(pl)) this.wantCrouch = false; // cover no longer valid
@@ -1035,35 +1062,35 @@ export class Enemy {
   private openGround(dt: number, dist: number) {
     this.strafeTimer -= dt;
     if (this.strafeTimer <= 0) {
-      this.strafeTimer = rand(TACTICS.strafeSwitch[0], TACTICS.strafeSwitch[1]);
+      this.strafeTimer = rand(this.T.strafeSwitch[0], this.T.strafeSwitch[1]);
       this.alongDir = 0;
       this.strafeDir = Math.random() < 0.65 ? -this.strafeDir : this.strafeDir;
     }
     if (this.reloadT >= 0) {
       // reloading in the open: a slow sidestep, crouched — not a retreat
-      this.setTactic(this.strafeDir, 0, TACTICS.coverShuffleSpeed * 0.8, true);
-      if (!this.probe(this.tacX, this.tacZ, TACTICS.strafeProbe)) this.tacSpeed = 0;
+      this.setTactic(this.strafeDir, 0, this.T.coverShuffleSpeed * 0.8, true);
+      if (!this.probe(this.tacX, this.tacZ, this.T.strafeProbe)) this.tacSpeed = 0;
       return;
     }
     let fwd = 0;
-    let speed: number = TACTICS.strafeSpeed;
+    let speed: number = this.T.strafeSpeed;
     // (no falling back: only right on top of you a step back — inside a rifle-butt's reach he strikes)
     const pushes = this.boss || this.role === "assault";
-    if (dist < TACTICS.panicRange) {
+    if (dist < this.T.panicRange) {
       fwd = -1;
-      speed = TACTICS.backpedalSpeed;
-    } else if ((dist > TACTICS.maxRange || (pushes && dist > TACTICS.assaultPushRange) || (this.rage > 0.9 && dist > 6)) && this.canSee) {
+      speed = this.T.backpedalSpeed;
+    } else if ((dist > this.T.maxRange || (pushes && dist > this.T.assaultPushRange) || (this.rage > 0.9 && dist > 6)) && this.canSee) {
       // (the rifleman and the boss close in; an enraged boss all the way)
       fwd = 0.85;
-      speed = TACTICS.advanceSpeed * (1 + 0.4 * this.rage);
+      speed = this.T.advanceSpeed * (1 + 0.4 * this.rage);
     }
     const side = fwd === -1 ? 0.25 * this.strafeDir : this.strafeDir;
     this.setTactic(side, fwd, speed, false);
-    if (!this.probe(this.tacX, this.tacZ, TACTICS.strafeProbe)) {
+    if (!this.probe(this.tacX, this.tacZ, this.T.strafeProbe)) {
       // blocked: try the other side, then just hold
       this.strafeDir = -this.strafeDir;
       this.setTactic(-side, fwd, speed, false);
-      if (!this.probe(this.tacX, this.tacZ, TACTICS.strafeProbe)) {
+      if (!this.probe(this.tacX, this.tacZ, this.T.strafeProbe)) {
         // a corridor, no room either side: work up and down it rather than stand there — the boss and
         // the rifleman in to pistol range, anyone too close a step back, the rest a step in or out
         // (the way chosen is kept till the strafe timer runs out — picked fresh each frame it flipped
@@ -1075,8 +1102,8 @@ export class Enemy {
           if (b && this.ctx.time - b.t < 2 && Math.sign(this.alongDir) === b.dir) this.alongDir = -this.alongDir;
         }
         const along = fwd !== 0 ? fwd : this.alongDir;
-        this.setTactic(0, along, fwd !== 0 ? speed : along < 0 ? TACTICS.backpedalSpeed : TACTICS.strafeSpeed * 0.7, false);
-        if (!this.probe(this.tacX, this.tacZ, TACTICS.strafeProbe)) this.tacSpeed = 0;
+        this.setTactic(0, along, fwd !== 0 ? speed : along < 0 ? this.T.backpedalSpeed : this.T.strafeSpeed * 0.7, false);
+        if (!this.probe(this.tacX, this.tacZ, this.T.strafeProbe)) this.tacSpeed = 0;
       }
     }
   }
@@ -1142,7 +1169,7 @@ export class Enemy {
         const dx = pe.x - c.n.p.x, dz = pe.z - c.n.p.z;
         const l = Math.hypot(dx, dz) || 1;
         for (const s of [-1, 1]) {
-          this.tmp2.set(c.n.p.x + (dz / l) * TACTICS.leanReach * s, c.n.p.y + 1.5, c.n.p.z - (dx / l) * TACTICS.leanReach * s);
+          this.tmp2.set(c.n.p.x + (dz / l) * this.T.leanReach * s, c.n.p.y + 1.5, c.n.p.z - (dx / l) * this.T.leanReach * s);
           if (nav.clear(this.tmp2, pe)) {
             peek = true;
             break;
@@ -1156,7 +1183,10 @@ export class Enemy {
         const want = this.flankBase + (this.role === "flankL" ? -1.4 : 1.4);
         side = Math.abs(wrapAngle(Math.atan2(c.n.p.x - pl.feet.x, c.n.p.z - pl.feet.z) - want)) * 3;
       }
-      const score = c.d + (peek ? 0 : 8) + Math.abs(c.dp - ideal) * 0.3 + side + crowd * 6 + rand(0, 2);
+      // (an elite bounds cover to cover: a dash of ELITE.bound metres, not a shuffle to the nearest spot —
+      // the run that he slides into the next cover at the end of)
+      const travel = this.spawn.elite ? (c.d < 3.5 ? 40 : Math.abs(c.d - ELITE.bound)) : c.d;
+      const score = travel + (peek ? 0 : 8) + Math.abs(c.dp - ideal) * 0.3 + side + crowd * 6 + rand(0, 2);
       if (score < bestScore) {
         bestScore = score;
         best = c.n.p;
@@ -1212,9 +1242,11 @@ export class Enemy {
     this.moveSpeed = speed;
     this.stuckTimer = 0;
     this.tacSpeed = 0;
+    this.toCover = false;
   }
 
   private stop() {
+    this.toCover = false;
     this.dest = null;
     this.path = [];
     this.pathIdx = 0;
@@ -1237,6 +1269,29 @@ export class Enemy {
   }
 
   // ======================================================================= reflexes
+  /**
+   * An elite's combat roll: square to the shot (whichever side is clear for a roll's length), keeping
+   * on at the target when he's up. false: no room either side.
+   */
+  private combatRoll(dir: Vector3) {
+    if (!this.skin || this.busy) return false;
+    const l = Math.hypot(dir.x, dir.z) || 1;
+    const px = dir.z / l, pz = -dir.x / l;
+    for (const s of Math.random() < 0.5 ? [1, -1] : [-1, 1]) {
+      if (!this.probe(px * s, pz * s, this.R.dodgeClear)) continue;
+      this.burstLeft = 0;
+      this.endBurst();
+      this.stop();
+      this.tacSpeed = 0;
+      this.wantCrouch = false;
+      this.yaw = this.faceYaw = Math.atan2(px * s, pz * s);
+      this.skin.ctrl.play("roll");
+      this.rollCd = ELITE.rollCooldown;
+      return true;
+    }
+    return false;
+  }
+
   /** a grenade is about to go off close by: dive-roll away (or sprint) */
   private dodgeGrenades() {
     const list = this.ctx.threats?.();
@@ -1246,16 +1301,16 @@ export class Enemy {
       if (this.dodged.has(t.key)) continue;
       const dx = c.x - t.pos.x, dz = c.z - t.pos.z;
       const d = Math.hypot(dx, dz);
-      if (d > REFLEX.dodgeRadius || t.fuse > 2.4 || Math.abs(t.pos.y - (c.y - ENEMY.halfHeight)) > 2.5) continue;
+      if (d > this.R.dodgeRadius || t.fuse > 2.4 || Math.abs(t.pos.y - (c.y - ENEMY.halfHeight)) > 2.5) continue;
       this.dodged.add(t.key);
-      if (Math.random() > REFLEX.dodgeChance) continue; // froze
+      if (Math.random() > this.R.dodgeChance) continue; // froze
       const ax = dx / (d || 1), az = dz / (d || 1);
       this.burstLeft = 0;
       this.endBurst();
       this.stop();
       this.tacSpeed = 0;
       this.wantCrouch = false;
-      if (this.probe(ax, az, REFLEX.dodgeClear)) {
+      if (this.probe(ax, az, this.R.dodgeClear)) {
         // dive along the escape direction
         this.yaw = this.faceYaw = Math.atan2(ax, az);
         this.skin.ctrl.play("roll");
@@ -1263,14 +1318,14 @@ export class Enemy {
         // try either side of it, else just run
         for (const s of [1, -1]) {
           const sx = ax * Math.cos(s) + az * Math.sin(s), sz = -ax * Math.sin(s) + az * Math.cos(s);
-          if (this.probe(sx, sz, REFLEX.dodgeClear)) {
+          if (this.probe(sx, sz, this.R.dodgeClear)) {
             this.yaw = this.faceYaw = Math.atan2(sx, sz);
             this.skin.ctrl.play("roll");
             return true;
           }
         }
         this.tmp3.set(c.x + ax * 6, c.y - ENEMY.halfHeight, c.z + az * 6);
-        this.goTo(this.tmp3, TACTICS.sprintSpeed);
+        this.goTo(this.tmp3, this.T.sprintSpeed);
       }
       return true;
     }
@@ -1278,7 +1333,7 @@ export class Enemy {
   }
 
   private startMelee() {
-    this.meleeCd = REFLEX.meleeCooldown;
+    this.meleeCd = this.R.meleeCooldown;
     this.burstLeft = 0;
     this.endBurst();
     this.stop();
@@ -1297,8 +1352,8 @@ export class Enemy {
     const dx = pl.feet.x - c.x, dz = pl.feet.z - c.z;
     const d = Math.hypot(dx, dz);
     const facing = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / Math.max(0.01, d);
-    if (d < REFLEX.meleeHitRange && facing > 0.35) {
-      pl.takeDamage(REFLEX.meleeDamage * rand(0.85, 1.15), c);
+    if (d < this.R.meleeHitRange && facing > 0.35) {
+      pl.takeDamage(this.R.meleeDamage * rand(0.85, 1.15), c);
       pl.shake(0.85);
       this.ctx.audio.play("meleeHit", { volume: 0.9, pitchVar: 0.06 });
     }
@@ -1312,11 +1367,11 @@ export class Enemy {
   private tryGrenade(now: number) {
     if (!this.skin || this.nades <= 0 || this.reloadT >= 0 || this.skin.ctrl.throwing || !this.ctx.throwGrenade) return false;
     const hidden = now - this.lastSeen;
-    if (this.canSee || hidden < REFLEX.grenadeHiddenFor || hidden > 12) return false;
+    if (this.canSee || hidden < this.R.grenadeHiddenFor || hidden > 12) return false;
     const target = this.grenadeTarget(new Vector3());
     const d = this.distTo(target);
-    if (d < REFLEX.grenadeRange[0] || d > REFLEX.grenadeRange[1]) return false;
-    if (Math.random() > REFLEX.grenadeChance) return false;
+    if (d < this.R.grenadeRange[0] || d > this.R.grenadeRange[1]) return false;
+    if (Math.random() > this.R.grenadeChance) return false;
     if (this.ctx.grenadeReady && !this.ctx.grenadeReady()) return false;
     // friendlies near the target? don't
     if (this.ctx.squad?.some((o) => o !== this && o.alive && Vector3.DistanceSquared(o.position, target) < 6 * 6)) return false;
@@ -1516,7 +1571,7 @@ export class Enemy {
     // (the legs follow his velocity no faster than he can really change it — his own deceleration;
     // a run cut dead against a wall or a shove snapped the gait from stride to stand in one frame)
     let ax = this.velX - this.animVX, az = this.velZ - this.animVZ;
-    const al = Math.hypot(ax, az), lim = TACTICS.decel * i.dt;
+    const al = Math.hypot(ax, az), lim = this.T.decel * i.dt;
     if (al > lim) {
       ax *= lim / al;
       az *= lim / al;
@@ -1536,6 +1591,7 @@ export class Enemy {
     i.hitYaw = this.hy;
     i.recoil = this.rc;
     i.pistol = this.pistolW;
+    i.slide = this.slideT;
     i.aimAt = null;
     i.aimW = 0;
     if (this.alive && (this.state === "ATTACK" || this.state === "ALERT")) {
@@ -1649,7 +1705,23 @@ export class Enemy {
     let vx = 0;
     let vz = 0;
     const busy = this.busy;
-    if (busy) {
+    if (this.slideT >= 0) {
+      // sliding (an elite, into cover): the sprint's speed run out along the slide, the rifle still on
+      // you; at the end he's there — down behind it
+      this.slideT += dt;
+      const k = Math.max(0, 1 - this.slideT / ELITE.slideTime);
+      this.velX = this.slideX * this.slideV * k;
+      this.velZ = this.slideZ * this.slideV * k;
+      vx = this.velX;
+      vz = this.velZ;
+      if (this.slideT >= ELITE.slideTime) {
+        this.slideT = -1;
+        this.pathIdx = this.path.length;
+        this.toCover = false;
+        this.atCover = true;
+        this.wantCrouch = true;
+      }
+    } else if (busy) {
       // a scripted move owns the body (its root motion moves us)
     } else if (this.isMoving()) {
       const t = this.path[this.pathIdx];
@@ -1658,7 +1730,13 @@ export class Enemy {
       const d = Math.hypot(dx, dz);
       const lastNode = this.pathIdx === this.path.length - 1;
       if (d < 0.45) this.pathIdx++;
-      else if (lastNode && this.curSpeed > 3.2 && d < 1.25 && this.skin) {
+      else if (this.spawn.elite && this.toCover && lastNode && this.curSpeed > ELITE.slideSpeed && d < this.curSpeed * ELITE.slideTime * 0.5 + 0.3 && d > 1.2 && this.skin && this.state === "ATTACK") {
+        // an elite at a sprint into cover: the slide (it carries him the rest of the way)
+        this.slideT = 0;
+        this.slideV = this.curSpeed;
+        this.slideX = dx / d;
+        this.slideZ = dz / d;
+      } else if (lastNode && this.curSpeed > 3.2 && d < 1.25 && this.skin) {
         // arriving at a run: plant and stop (the clip carries the last metre)
         this.faceYaw = Math.atan2(dx, dz);
         this.yaw = this.faceYaw;
@@ -1666,13 +1744,14 @@ export class Enemy {
         this.pathIdx = this.path.length;
       } else {
         let s = this.moveSpeed;
-        if (this.state === "ATTACK" && this.canSee) {
+        // (an elite breaking for cover goes flat out, in sight or not — and slides in)
+        if (this.state === "ATTACK" && this.canSee && !(this.spawn.elite && this.toCover)) {
           // you're in sight: a tactical jog with the rifle on you, a backstep if the way leads off —
           // never a run with his back to you
           const pf = this.ctx.player.feet;
           const tx = pf.x - c.x, tz = pf.z - c.z;
           const toward = (dx * tx + dz * tz) / (d * (Math.hypot(tx, tz) || 1));
-          s = Math.min(s, toward < -0.35 ? TACTICS.combatBackSpeed : TACTICS.combatMoveSpeed);
+          s = Math.min(s, toward < -0.35 ? this.T.combatBackSpeed : this.T.combatMoveSpeed);
         }
         vx = (dx / d) * s;
         vz = (dz / d) * s;
@@ -1691,14 +1770,14 @@ export class Enemy {
     if (this.ctx.squad && !busy) {
       this.sep.setAll(0);
       // moving in as a squad they keep a few metres apart; in the fight, at least an arm's length
-      const R = TACTICS.separation * (this.state === "ALERT" || this.state === "SEARCH" ? 2.6 : this.state === "ATTACK" ? 1.5 : 1);
+      const R = this.T.separation * (this.state === "ALERT" || this.state === "SEARCH" ? 2.6 : this.state === "ATTACK" ? 1.5 : 1);
       for (const o of this.ctx.squad) {
         if (o === this || !o.alive) continue;
         const ox = c.x - o.position.x, oz = c.z - o.position.z;
         const d2 = ox * ox + oz * oz;
         if (d2 > R * R || d2 < 1e-6) continue;
         const d = Math.sqrt(d2);
-        const k = ((R - d) / R) * TACTICS.separationStrength;
+        const k = ((R - d) / R) * this.T.separationStrength;
         this.sep.x += (ox / d) * k;
         this.sep.z += (oz / d) * k;
       }
@@ -1708,7 +1787,7 @@ export class Enemy {
     // acceleration / deceleration
     const want = Math.hypot(vx, vz);
     const cur = Math.hypot(this.velX, this.velZ);
-    const rate = (want > cur ? TACTICS.accel : TACTICS.decel) * dt;
+    const rate = (want > cur ? this.T.accel : this.T.decel) * dt;
     let ddx = vx - this.velX, ddz = vz - this.velZ;
     const dl = Math.hypot(ddx, ddz);
     if (dl > rate) {
@@ -1771,14 +1850,14 @@ export class Enemy {
       const moveYaw = Math.atan2(vx, vz);
       const off = Math.abs(wrapAngle(moveYaw - this.faceYaw));
       const engaged = this.state === "ATTACK" && this.canSee;
-      const maxOff = sp > TACTICS.faceMoveAbove ? 0 : sp > 1.3 ? 1.65 : Math.PI;
+      const maxOff = sp > this.T.faceMoveAbove ? 0 : sp > 1.3 ? 1.65 : Math.PI;
       if (!engaged || off > maxOff) this.faceYaw = moveYaw;
     }
     // smooth turn: eased toward the wanted heading, capped rate (aim is separate — the spine tracks the target)
     if (!busy) {
       const dyaw = wrapAngle(this.faceYaw - this.yaw);
-      const step = dyaw * Math.min(1, dt * TACTICS.turnSmooth);
-      this.yaw += clamp(step, -TACTICS.turnRate * dt, TACTICS.turnRate * dt);
+      const step = dyaw * Math.min(1, dt * this.T.turnSmooth);
+      this.yaw += clamp(step, -this.T.turnRate * dt, this.T.turnRate * dt);
     }
   }
 

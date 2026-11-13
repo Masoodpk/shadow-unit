@@ -22,6 +22,13 @@ export interface RetargetBone {
   /** a segment to point along (src child → dst child); none: the FSB bone's turn is copied */
   srcTo?: string;
   dstTo?: string;
+  /**
+   * the segment's twist is read against "up" instead of "forward" (a foot: its sole stays as flat as
+   * the FSB's however far either rig's rest pose has the foot turned out — the FSB's own rest is a
+   * stance with the feet at 28° and 58°, and against "forward" a foot that rests at another angle
+   * comes through rolled onto its edge)
+   */
+  up?: boolean;
 }
 
 const S = 1 / 32767;
@@ -97,7 +104,7 @@ export function retargetSoldierAnims(src: AnimSet, srcNodes: Node[], dstNodes: N
   // ---- the rest poses: directions, frames, rotations
   forceS();
   for (const n of order) n.computeWorldMatrix(true);
-  const FWD = new Vector3(0, 0, 1);
+  const FWD = new Vector3(0, 0, 1), UP = new Vector3(0, 1, 0);
   const rest = dMapped.map((b) => {
     const sW = rotOf(rel(b.s, sBase));
     const dW = rotOf(rel(b.n, dBase));
@@ -105,9 +112,10 @@ export function retargetSoldierAnims(src: AnimSet, srcNodes: Node[], dstNodes: N
     const dF = new Matrix();
     if (b.sTo && b.dTo) {
       const dDir = pos(b.dTo, dBase).subtract(pos(b.n, dBase)).normalize();
-      // the twist reference: "forward", carried in the FSB bone's own frame
-      secLocal = Vector3.TransformNormal(FWD, Matrix.Invert(sW));
-      frame(dDir, FWD, dF);
+      // the twist reference: "forward" (a flat foot's: "up"), carried in the FSB bone's own frame
+      const ref = b.up ? UP : FWD;
+      secLocal = Vector3.TransformNormal(ref, Matrix.Invert(sW));
+      frame(dDir, ref, dF);
     }
     return { sW, dW, secLocal, dF };
   });
@@ -203,6 +211,8 @@ export interface RetargetNames {
   R: { clav?: string; up: string; fore: string; hand: string; mid: string };
   LL: { thigh: string; calf: string; foot: string; toe: string };
   RL: { thigh: string; calf: string; foot: string; toe: string };
+  /** the feet's twist read against "up" (RetargetBone.up): a rig whose rest pose has the feet turned out */
+  flatFeet?: boolean;
 }
 /** which FSB bone each of a rig's bones plays (the FSB rig is Mixamo-named) */
 export function retargetTable(n: RetargetNames): RetargetBone[] {
@@ -220,7 +230,50 @@ export function retargetTable(n: RetargetNames): RetargetBone[] {
     t.push({ src: M(F + "Hand"), srcTo: M(F + "HandMiddle1"), dst: a.hand, dstTo: a.mid });
     t.push({ src: M(F + "UpLeg"), srcTo: M(F + "Leg"), dst: l.thigh, dstTo: l.calf });
     t.push({ src: M(F + "Leg"), srcTo: M(F + "Foot"), dst: l.calf, dstTo: l.foot });
-    t.push({ src: M(F + "Foot"), srcTo: M(F + "ToeBase"), dst: l.foot, dstTo: l.toe });
+    t.push({ src: M(F + "Foot"), srcTo: M(F + "ToeBase"), dst: l.foot, dstTo: l.toe, up: n.flatFeet });
   }
   return t;
+}
+
+/**
+ * A rig's own clips (Mixamo FBX converted straight onto its skeleton: fbx-own-clips.mjs) put in the
+ * place of the retargeted clips of the same name. The two sets drive different bones (the own clips the
+ * whole Mixamo spine, the retargeted ones the bones the FSB table maps): the merged set drives both
+ * lists, a clip that doesn't move a bone holding it at its rest pose. Speeds are rescaled from the
+ * file to the height the soldier is stood at (`hipW`: the hips' height in the scene, at rest).
+ */
+export function mergeOwnClips(set: AnimSet, own: AnimSet, nodes: Node[], hipW: number): AnimSet {
+  const bones = [...set.bones, ...own.bones.filter((b) => !set.bones.includes(b))];
+  const rest = bones.map((b) => {
+    const n = findIn(nodes, b);
+    if (!n) throw new Error("own clips: missing bone " + b);
+    return n.rotationQuaternion ?? Quaternion.FromEulerVector(n.rotation);
+  });
+  const nb = bones.length;
+  const remap = (c: Clip, from: string[]): Clip => {
+    const idx = bones.map((b) => from.indexOf(b));
+    const fb = from.length;
+    const rot = new Int16Array(c.n * nb * 4);
+    for (let f = 0; f < c.n; f++)
+      for (let b = 0; b < nb; b++) {
+        const o = (f * nb + b) * 4, i = idx[b];
+        if (i >= 0) rot.set(c.rot.subarray((f * fb + i) * 4, (f * fb + i) * 4 + 4), o);
+        else {
+          const q = rest[b];
+          rot[o] = Math.round(q.x * 32767);
+          rot[o + 1] = Math.round(q.y * 32767);
+          rot[o + 2] = Math.round(q.z * 32767);
+          rot[o + 3] = Math.round(q.w * 32767);
+        }
+      }
+    return { ...c, rot };
+  };
+  const clips = {} as Record<ClipKey, Clip>;
+  for (const k of Object.keys(set.clips) as ClipKey[]) clips[k] = remap(set.clips[k], set.bones);
+  const k = own.hipH ? hipW / own.hipH : 1;
+  for (const key of Object.keys(own.clips) as ClipKey[]) {
+    const c = remap(own.clips[key], own.bones);
+    clips[key] = { ...c, speed: c.speed * k, root: c.root ? c.root.map((v) => v * k) : undefined };
+  }
+  return { bones, hips: set.hips, clips };
 }
